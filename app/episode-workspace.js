@@ -46,6 +46,14 @@
     let setupSummary = setupComplete
       ? `${episode.speakerCount} speaker${episode.speakerCount === 1 ? "" : "s"} · ${episode.sourceModeLabel || "sources"}`
       : "Add your episode name, sources, and speaker roles.";
+    if (setupComplete && Array.isArray(episode.speakers) && episode.speakers.length) {
+      const named = episode.speakers
+        .filter((speaker) => speaker && speaker.name)
+        .map((speaker) => `${speaker.name} (${speaker.role})`);
+      if (named.length) {
+        setupSummary = `${named.join(" · ")} — ${episode.sourceModeLabel || "sources"}`;
+      }
+    }
     if (setupComplete && episode.socialLinkCount > 0) {
       setupSummary += context.contextApproved
         ? " · Social context approved"

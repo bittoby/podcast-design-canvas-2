@@ -1853,6 +1853,8 @@
   }
 
   function onContinue() {
+    readSetupFormState();
+    persistEpisodeSession();
     const result = ES.validateDraft(state);
     errors = result.errors;
     showErrors = true;
@@ -2115,6 +2117,50 @@
     };
   }
 
+  function renderImportRecapCard(summary) {
+    if (!ES || !summary) {
+      return null;
+    }
+    const recap = ES.buildImportRecap(summary, {
+      appliedStyle: brandedAppliedStyle(summary),
+    });
+    const speakerList = el("ul", { class: "workspace-import-speakers" });
+    recap.speakerLines.forEach((line) => {
+      const parts = [
+        el("strong", {}, line.role),
+        ` — ${line.name}`,
+        el("span", { class: "workspace-import-source" }, ` · ${line.sourceLabel}`),
+      ];
+      if (line.socialCount > 0) {
+        parts.push(
+          el(
+            "span",
+            { class: "workspace-import-social" },
+            ` · ${line.socialCount} social link${line.socialCount === 1 ? "" : "s"}`,
+          ),
+        );
+      }
+      speakerList.appendChild(el("li", { class: "workspace-import-speaker" }, parts));
+    });
+    return el(
+      "section",
+      { class: "card workspace-import-recap" },
+      el("h3", {}, "Imported episode setup"),
+      el(
+        "p",
+        { class: "hint workspace-import-source-line" },
+        el("strong", {}, recap.sourceModeLabel),
+        recap.sourceDetail && recap.sourceDetail !== recap.sourceModeLabel
+          ? ` — ${recap.sourceDetail}`
+          : null,
+      ),
+      speakerList,
+      recap.styleLine
+        ? el("p", { class: "workspace-import-style" }, `Style: ${recap.styleLine}`)
+        : null,
+    );
+  }
+
   function renderWorkspace(summary) {
     workspaceSummaryCache = summary;
     lastView = "workspace";
@@ -2134,6 +2180,11 @@
         el("p", { class: "hint" }, "One self-serve flow from import to publish. Each stage shows what is ready and what still needs attention."),
       ),
     );
+
+    const importRecap = renderImportRecapCard(summary);
+    if (importRecap) {
+      view.appendChild(importRecap);
+    }
 
     if (WS) {
       ensureMomentsBoard(summary);

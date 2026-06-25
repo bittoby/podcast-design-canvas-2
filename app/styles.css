@@ -2283,6 +2283,38 @@ button.ghost:hover,
   max-width: 58ch;
 }
 
+/* ---- First-episode import recap (#130) ---- */
+.workspace-import-recap h3 {
+  margin-top: 0;
+}
+
+.workspace-import-source-line {
+  margin: 0 0 10px;
+  word-break: break-word;
+}
+
+.workspace-import-speakers {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.workspace-import-speaker {
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+
+.workspace-import-source,
+.workspace-import-social {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.workspace-import-style {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .workspace-progress-line {
   font-weight: 700;
   margin: 0 0 6px;

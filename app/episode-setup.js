@@ -207,6 +207,34 @@
     };
   }
 
+  // Creator-facing recap of what was imported — used on the workspace after setup.
+  function buildImportRecap(summary, options) {
+    const data = summary && typeof summary === "object" ? summary : {};
+    const opts = options && typeof options === "object" ? options : {};
+    const speakers = Array.isArray(data.speakers) ? data.speakers : [];
+    const speakerLines = speakers.map((speaker) => ({
+      role: speaker.role || "Speaker",
+      name: speaker.name || "Unnamed speaker",
+      sourceLabel: speaker.sourceLabel || sourceLabel(data.sourceMode, speaker),
+      socialCount: Array.isArray(speaker.social) ? speaker.social.length : 0,
+    }));
+    let sourceDetail = data.sourceModeLabel || "";
+    if (data.sourceMode === "riverside" && trim(data.riversideLink)) {
+      sourceDetail = trim(data.riversideLink);
+    }
+    const appliedStyle = opts.appliedStyle;
+    const styleLine = appliedStyle && appliedStyle.presetName
+      ? `${appliedStyle.presetName}${appliedStyle.layoutLabel ? ` · ${appliedStyle.layoutLabel}` : ""}`
+      : "";
+    return {
+      sourceModeLabel: data.sourceModeLabel || modeLabel(data.sourceMode),
+      sourceDetail: sourceDetail,
+      speakerLines: speakerLines,
+      styleLine: styleLine,
+      socialLinkCount: data.socialLinkCount || 0,
+    };
+  }
+
   const api = {
     SPEAKER_BUCKETS,
     SOURCE_MODES,
@@ -221,6 +249,7 @@
     sourceLabel,
     speakerBucketCueClass,
     summarize,
+    buildImportRecap,
     validateDraft,
   };
 
