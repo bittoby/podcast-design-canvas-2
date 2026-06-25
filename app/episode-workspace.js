@@ -43,13 +43,25 @@
 
     // Setup -------------------------------------------------------------------
     const setupComplete = Boolean(episode.episodeName) && (episode.speakerCount || 0) > 0;
-    let setupSummary = setupComplete
-      ? `${episode.speakerCount} speaker${episode.speakerCount === 1 ? "" : "s"} · ${episode.sourceModeLabel || "sources"}`
-      : "Add your episode name, sources, and speaker roles.";
-    if (setupComplete && episode.socialLinkCount > 0) {
-      setupSummary += context.contextApproved
-        ? " · Social context approved"
-        : " · Social context needs review";
+    let setupSummary = "Add your episode name, sources, and speaker roles.";
+    if (setupComplete) {
+      const parts = [];
+      if (episode.riversideLink) {
+        parts.push(`${episode.sourceModeLabel || "Riverside link"}: ${episode.riversideLink}`);
+      } else if (episode.sourceModeLabel) {
+        parts.push(episode.sourceModeLabel);
+      }
+      const identities = (episode.speakers || []).map(function (speaker) {
+        return speaker.name ? `${speaker.name} (${speaker.role})` : speaker.role;
+      }).filter(Boolean);
+      if (identities.length) {
+        parts.push(identities.join(" · "));
+      }
+      if (episode.socialLinkCount > 0) {
+        parts.push(`${episode.socialLinkCount} social link${episode.socialLinkCount === 1 ? "" : "s"} saved`);
+        parts.push(context.contextApproved ? "context approved" : "context ready to review");
+      }
+      setupSummary = parts.join(" · ");
     }
     stages.push(stage(
       "setup",

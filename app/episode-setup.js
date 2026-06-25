@@ -289,6 +289,37 @@
     return "Optional speaker links help transcript spellings and make captions and on-screen moments more accurate. Skip them anytime — the import still works.";
   }
 
+  function buildImportHandoff(summary) {
+    const data = summary && typeof summary === "object" ? summary : {};
+    const mode = normalizeMode(data.sourceMode);
+    const speakers = Array.isArray(data.speakers) ? data.speakers : [];
+    const sourceDetail = mode === "riverside"
+      ? trim(data.riversideLink) || "Riverside recording link saved"
+      : "Synced speaker files attached per bucket";
+
+    return {
+      confirmationLead: "Your imported sources, speaker buckets, and social context are saved and driving this episode setup.",
+      sourceLabel: data.sourceModeLabel || modeLabel(mode),
+      sourceDetail,
+      speakers: speakers.map((speaker) => {
+        const social = Array.isArray(speaker.social) ? speaker.social : [];
+        return {
+          role: trim(speaker.role),
+          name: trim(speaker.name),
+          identityLine: trim(speaker.name)
+            ? `${trim(speaker.name)} · ${trim(speaker.role)}`
+            : trim(speaker.role),
+          sourceLabel: trim(speaker.sourceLabel) || sourceLabel(mode, speaker),
+          social,
+          socialLine: social.length
+            ? social.map((entry) => `${entry.label}: ${entry.url}`).join(" · ")
+            : "No social links added",
+        };
+      }),
+      socialLinkCount: Number(data.socialLinkCount) || 0,
+    };
+  }
+
   const api = {
     SPEAKER_BUCKETS,
     SOURCE_MODES,
@@ -311,6 +342,7 @@
     roleSelectOptions,
     socialLinksBenefitLine,
     importSocialContextCueLine,
+    buildImportHandoff,
     summarize,
     validateDraft,
   };

@@ -3473,3 +3473,89 @@ button.ghost:hover,
   line-height: 1.5;
 }
 
+/* ---- Import handoff summary (#142) ---- */
+.episode-import-handoff {
+  border: 1px solid #d8def0;
+  background: linear-gradient(180deg, #fbfcff 0%, #ffffff 100%);
+}
+
+.episode-import-handoff-eyebrow {
+  margin-bottom: 6px;
+  color: var(--brand);
+}
+
+.episode-import-handoff-lead {
+  margin: 8px 0 0;
+}
+
+.episode-import-handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin: 16px 0 0;
+}
+
+.episode-import-handoff-item dt {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #6b7280);
+}
+
+.episode-import-handoff-item dd {
+  margin: 4px 0 0;
+}
+
+.episode-import-handoff-speakers-title {
+  margin: 18px 0 10px;
+  font-size: 14px;
+}
+
+.episode-import-handoff-speakers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.episode-import-handoff-speaker {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.episode-import-handoff-speaker-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.episode-import-handoff-source {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.episode-import-handoff-social {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.episode-import-handoff-social-empty {
+  list-style: none;
+  margin-left: -18px;
+  color: var(--muted, #6b7280);
+}
+
+@media (max-width: 720px) {
+  .episode-import-handoff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -536,30 +536,52 @@
   }
 
   function renderEpisodeImportRecap(summary) {
+    const handoff = ES.buildImportHandoff(summary);
     const styleLine = importStyleSummaryLine();
-    const speakerItems = summary.speakers.map((speaker) => {
-      const label = speaker.name ? `${speaker.name} (${speaker.role})` : speaker.role;
+    const speakerItems = handoff.speakers.map((speaker) => {
+      const bucketClass = ES.speakerBucketCueClass(speaker.role);
+      const socialItems = speaker.social.length
+        ? speaker.social.map((entry) => el("li", {}, `${entry.label}: ${entry.url}`))
+        : [el("li", { class: "episode-import-handoff-social-empty" }, "No social links added")];
       return el(
         "li",
-        { class: "episode-import-recap-speaker" },
-        el("strong", {}, label),
-        " — ",
-        speaker.sourceLabel,
+        { class: `episode-import-handoff-speaker ${bucketClass}` },
+        el("div", { class: "episode-import-handoff-speaker-head" },
+          el("span", { class: `speaker-role-badge ${bucketClass}` }, speaker.role),
+          el("strong", {}, speaker.name || speaker.role),
+        ),
+        el("p", { class: "episode-import-handoff-source" }, speaker.sourceLabel),
+        el("ul", { class: "episode-import-handoff-social" }, socialItems),
       );
     });
 
     return el(
       "section",
-      { class: "card episode-import-recap" },
-      el("h3", {}, "Episode import summary"),
-      el("p", { class: "episode-import-recap-source" }, `${summary.sourceModeLabel}${summary.riversideLink ? `: ${summary.riversideLink}` : ""}`),
-      el("p", { class: "episode-import-recap-style" }, `Episode look: ${styleLine}`),
-      el("ul", { class: "episode-import-recap-speakers" }, speakerItems),
-      summary.socialLinkCount > 0
+      { class: "card episode-import-recap episode-import-handoff" },
+      el("p", { class: "eyebrow episode-import-handoff-eyebrow" }, "Import accepted"),
+      el("h3", {}, "Episode setup summary"),
+      el("p", { class: "hint episode-import-handoff-lead" }, handoff.confirmationLead),
+      el(
+        "dl",
+        { class: "episode-import-handoff-grid" },
+        el("div", { class: "episode-import-handoff-item" },
+          el("dt", {}, "Imported source"),
+          el("dd", {}, `${handoff.sourceLabel}: ${handoff.sourceDetail}`),
+        ),
+        styleLine
+          ? el("div", { class: "episode-import-handoff-item" },
+            el("dt", {}, "Episode look"),
+            el("dd", {}, styleLine),
+          )
+          : null,
+      ),
+      el("h4", { class: "episode-import-handoff-speakers-title" }, "Speakers driving this episode"),
+      el("ul", { class: "episode-import-handoff-speakers" }, speakerItems),
+      handoff.socialLinkCount > 0
         ? el(
           "p",
           { class: "hint episode-import-recap-social" },
-          `${summary.socialLinkCount} social link${summary.socialLinkCount === 1 ? "" : "s"} saved for speaker context`,
+          `${handoff.socialLinkCount} social link${handoff.socialLinkCount === 1 ? "" : "s"} saved for speaker context`,
         )
         : null,
     );
@@ -2389,7 +2411,7 @@
         { class: "workspace-head" },
         el("p", { class: "eyebrow" }, "Production workspace"),
         el("h2", {}, summary.episodeName),
-        el("p", { class: "hint" }, "One self-serve flow from import to publish. Each stage shows what is ready and what still needs attention."),
+        el("p", { class: "hint" }, "Your import is saved below — sources, speaker buckets, names, and social context are driving this episode setup."),
       ),
     );
 
