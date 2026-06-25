@@ -3455,3 +3455,21 @@ button.ghost:hover,
   }
 }
 
+/* ---- Social context import cues (#139) ---- */
+.setup-social-context-cue {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f7f8fc;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.speaker-social-benefit {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+

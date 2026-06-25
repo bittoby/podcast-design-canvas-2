@@ -530,7 +530,7 @@
       el(
         "p",
         { class: "hint import-ready-summary-note" },
-        "Assign each synced source to Host or Guest buckets and add social links — then continue to audio polish.",
+        "Assign each synced source to Host or Guest buckets. Optional speaker links help transcript and visual accuracy — then continue to audio polish.",
       ),
     );
   }
@@ -631,7 +631,7 @@
         heading.textContent = "Import your episode";
       }
       if (copy) {
-        copy.textContent = "Bring in a Riverside link or separate synced speaker files, assign each source to Host, Guest 1, or Guest 2, and add social links so the edit gets names and context right.";
+        copy.textContent = "Bring in a Riverside link or separate synced speaker files, assign each source to Host, Guest 1, or Guest 2, and optionally add speaker links to improve name spellings, captions, and visual moments.";
       }
       return;
     }
@@ -1696,8 +1696,8 @@
       ? `Import your first episode${show ? ` for ${show.name}` : ""}`
       : "Set up your recording and speakers";
     const importLead = firstImport
-      ? "Paste a Riverside link or attach synced speaker files, assign Host and guest buckets, and add social links — then continue to audio polish."
-      : "Import your synced sources, assign each speaker, and add social links — then continue to audio polish and style.";
+      ? `Paste a Riverside link or attach synced speaker files and assign Host and guest buckets. ${ES.importSocialContextCueLine()}`
+      : `Import your synced sources and assign each speaker. ${ES.importSocialContextCueLine()} Then continue to audio polish and style.`;
 
     const form = el("form", {
       class: `setup setup-import${firstImport ? " setup-first-episode-import" : ""}`,
@@ -1865,9 +1865,10 @@
       setupSectionHeader(
         sectionNumber,
         "Speakers & sources",
-        "One card per speaker — assign Host, Guest 1, or Guest 2 and attach each synced source.",
+        "One card per speaker — assign Host, Guest 1, or Guest 2, attach each synced source, and optionally add links for better spellings and captions.",
       ),
       renderSpeakerRoleOverview(),
+      el("p", { class: "hint setup-social-context-cue" }, ES.importSocialContextCueLine()),
       speakerStack,
     );
 
@@ -2077,11 +2078,11 @@
 
     // Optional social links
     const social = el("details", { class: "social speaker-group speaker-social-group" });
-    social.appendChild(el("summary", {}, "Social links (optional)"));
+    social.appendChild(el("summary", {}, "Social links for smarter edits (optional)"));
     const socialHint = el(
       "p",
-      { class: "hint" },
-      "Used only to spell names right and add relevant context — never to surface personal details.",
+      { class: "hint speaker-social-benefit" },
+      ES.socialLinksBenefitLine(),
     );
     social.appendChild(socialHint);
     ES.SOCIAL_NETWORKS.forEach((net) => {
@@ -2109,6 +2110,7 @@
       renderSetup();
       return;
     }
+    readSetupFormState();
     const result = ES.validateDraft(state);
     errors = result.errors;
     showErrors = true;

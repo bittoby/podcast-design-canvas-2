@@ -281,6 +281,14 @@
     };
   }
 
+  function socialLinksBenefitLine() {
+    return "Add a website or profile link so the edit can spell names correctly, catch references, and shape captions and visual moments. Optional production context only — never invasive research.";
+  }
+
+  function importSocialContextCueLine() {
+    return "Optional speaker links help transcript spellings and make captions and on-screen moments more accurate. Skip them anytime — the import still works.";
+  }
+
   const api = {
     SPEAKER_BUCKETS,
     SOURCE_MODES,
@@ -301,6 +309,8 @@
     usedSpeakerRoles,
     nextAvailableSpeakerRole,
     roleSelectOptions,
+    socialLinksBenefitLine,
+    importSocialContextCueLine,
     summarize,
     validateDraft,
   };
