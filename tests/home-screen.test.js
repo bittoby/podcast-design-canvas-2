@@ -26,6 +26,7 @@ const indexHtml = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8")
 test("home screen exposes one primary start CTA and quieter secondary paths", () => {
   assert.ok(ui.includes("home-primary-cta"));
   assert.ok(ui.includes("Create show & import episode →"));
+  assert.ok(ui.includes("startNewShowImportFlow"));
   assert.ok(ui.includes("home-secondary-links"));
   assert.ok(ui.includes("home-explore-panel"));
   assert.ok(ui.includes("Preview style presets"));
