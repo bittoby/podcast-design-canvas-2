@@ -79,6 +79,7 @@
   let startingFromShowIdentity = false;
   let showIdentitySummary = null;
   let lastView = "setup";
+  let rerenderImportView = null;
 
   function getActiveBrandKit() {
     if (activeBrandKit) {
@@ -432,6 +433,91 @@
     );
   }
 
+  function isFirstEpisodeImportStep() {
+    if (!activeShowId || !LIB) {
+      return false;
+    }
+    const show = LIB.getShow(showLibrary, activeShowId);
+    if (!show) {
+      return false;
+    }
+    const episodes = LIB.listEpisodes(showLibrary, activeShowId);
+    if (!episodes.length) {
+      return true;
+    }
+    if (episodes.length === 1 && activeEpisodeId && episodes[0].id === activeEpisodeId) {
+      return episodes[0].status === LIB.EPISODE_STATUS.DRAFT;
+    }
+    return false;
+  }
+
+  function importStyleSummaryLine() {
+    if (appliedStyle && appliedStyle.presetName) {
+      return appliedStyle.layoutLabel
+        ? `${appliedStyle.presetName} · ${appliedStyle.layoutLabel}`
+        : appliedStyle.presetName;
+    }
+    const presetSelect = document.getElementById("f-show-preset");
+    if (presetSelect && STY) {
+      const preset = STY.getPreset(presetSelect.value);
+      if (preset) {
+        return preset.name;
+      }
+    }
+    const show = activeShowId && LIB ? LIB.getShow(showLibrary, activeShowId) : null;
+    if (show && show.presetName) {
+      return show.presetName;
+    }
+    return "Choose during audio polish and style";
+  }
+
+  function renderImportReadySummary(options) {
+    const opts = options || {};
+    const show = activeShowId && LIB ? LIB.getShow(showLibrary, activeShowId) : null;
+    const showLabel = show ? show.name : (opts.showName || "Your show");
+    const sourceLabel = state.sourceMode === "upload" ? "Synced speaker files" : "Riverside link";
+    const bucketLine = state.speakers.map((speaker) => speaker.role || "Unassigned").join(" · ");
+
+    return el(
+      "section",
+      { class: "card import-ready-summary" },
+      el("h3", {}, "What carries into your episode"),
+      el(
+        "dl",
+        { class: "import-ready-summary-grid" },
+        el(
+          "div",
+          { class: "import-ready-summary-item" },
+          el("dt", {}, "Show"),
+          el("dd", {}, showLabel),
+        ),
+        el(
+          "div",
+          { class: "import-ready-summary-item" },
+          el("dt", {}, "Episode look"),
+          el("dd", {}, importStyleSummaryLine()),
+        ),
+        el(
+          "div",
+          { class: "import-ready-summary-item" },
+          el("dt", {}, "Import method"),
+          el("dd", {}, sourceLabel),
+        ),
+        el(
+          "div",
+          { class: "import-ready-summary-item" },
+          el("dt", {}, "Speaker buckets"),
+          el("dd", {}, bucketLine),
+        ),
+      ),
+      el(
+        "p",
+        { class: "hint import-ready-summary-note" },
+        "Assign each synced source to Host or Guest buckets and add social links — then continue to audio polish.",
+      ),
+    );
+  }
+
   function renderSpeakerRoleOverview() {
     const overview = el("div", { class: "setup-role-overview", "aria-label": "Current speaker role assignments" });
     state.speakers.forEach((speaker, index) => {
@@ -652,7 +738,7 @@
       { class: "btn-primary home-primary-cta", type: "button" },
       "Create show & import episode →",
     );
-    primaryStartBtn.addEventListener("click", () => renderNewShowForm());
+    primaryStartBtn.addEventListener("click", () => renderCombinedFirstEpisodeImport());
     startHero.appendChild(primaryStartBtn);
 
     const secondaryLinks = el("div", { class: "home-secondary-links" });
@@ -927,6 +1013,7 @@
       const show = LIB.createShow(check.name, {
         templateId: isPresetChoice ? "" : selectedTemplateId,
         templateName: tpl ? tpl.name : "",
+        presetId: isPresetChoice ? selectedTemplateId.slice("preset:".length) : "",
         presetName: selectedPresetName,
       });
       showLibrary = LIB.addShow(showLibrary, show);
@@ -938,6 +1025,281 @@
     const footer = el("div", { class: "workspace-actions setup-cta-bar" }, cancelBtn, saveBtn);
     root.appendChild(el("div", { class: "workspace-root" }, form, footer));
     refreshLargePreview();
+  }
+
+  function mergePendingImportDraft(pendingImport, show) {
+    state.episodeName = pendingImport.episodeName || state.episodeName;
+    state.sourceMode = pendingImport.sourceMode || state.sourceMode;
+    state.riversideLink = pendingImport.riversideLink || "";
+    state.speakers = (pendingImport.speakers || []).map((speaker) => Object.assign({}, speaker, {
+      social: Object.assign({}, speaker.social || {}),
+    }));
+    if (SI && show) {
+      state = SI.sanitizeSetupDraft(state, show);
+      (pendingImport.speakers || []).forEach((speaker, index) => {
+        if (!state.speakers[index]) {
+          return;
+        }
+        if (trim(speaker.name)) {
+          state.speakers[index].name = speaker.name;
+        }
+        if (trim(speaker.fileName)) {
+          state.speakers[index].fileName = speaker.fileName;
+          state.speakers[index].fileSize = speaker.fileSize || 0;
+        }
+        if (trim(speaker.trackLabel)) {
+          state.speakers[index].trackLabel = speaker.trackLabel;
+        }
+        ES.SOCIAL_NETWORKS.forEach((net) => {
+          if (speaker.social && trim(speaker.social[net.key])) {
+            state.speakers[index].social[net.key] = speaker.social[net.key];
+          }
+        });
+      });
+    }
+  }
+
+  function finishCombinedFirstEpisodeImport(showNameValue, presetIdValue, showError) {
+    readSetupFormState();
+    const pendingImport = JSON.parse(JSON.stringify(state));
+    const check = LIB.validateShowName(showLibrary, showNameValue);
+    if (!check.ok) {
+      renderCombinedFirstEpisodeImport(showNameValue, presetIdValue, check.error);
+      return;
+    }
+    const preset = STY ? STY.getPreset(presetIdValue) : null;
+    const show = LIB.createShow(check.name, {
+      presetId: preset ? preset.id : "",
+      presetName: preset ? preset.name : "",
+    });
+    showLibrary = LIB.addShow(showLibrary, show);
+    persistShowLibrary();
+    activeShowId = show.id;
+
+    const start = SI.buildEpisodeStart(show, templateStore);
+    applyEpisodeStart(start);
+    mergePendingImportDraft(pendingImport, show);
+
+    const episode = LIB.createEpisode(show.id, state.episodeName, {
+      templateId: start.templateId,
+      templateName: start.templateName,
+      presetName: start.appliedStyle ? start.appliedStyle.presetName : show.presetName,
+      speakerRoles: state.speakers.map((speaker) => speaker.role),
+      status: LIB.EPISODE_STATUS.DRAFT,
+    });
+    showLibrary = LIB.addEpisode(showLibrary, show.id, episode);
+    persistShowLibrary();
+    activeEpisodeId = episode.id;
+    lastView = "setup";
+    persistEpisodeSession();
+
+    showErrors = true;
+    onContinue();
+  }
+
+  function appendImportSetupSections(form, rerender) {
+    const nameInput = el("input", {
+      id: "f-episodeName",
+      type: "text",
+      value: state.episodeName,
+      placeholder: "e.g. Episode 12 — Building in Public",
+      "aria-invalid": isInvalid("episodeName") ? "true" : null,
+    });
+    nameInput.addEventListener("input", (e) => {
+      state.episodeName = e.target.value;
+      sanitizeSetupState();
+    });
+
+    form.appendChild(
+      el(
+        "section",
+        { class: "card setup-section setup-section-episode" },
+        setupSectionHeader(1, "Episode details", "Name this episode so it is easy to find in your show library."),
+        field("Episode name", nameInput, "episodeName"),
+      ),
+    );
+
+    const modeButtons = ES.SOURCE_MODES.map((mode) => {
+      const id = `mode-${mode.key}`;
+      const input = el("input", {
+        id,
+        type: "radio",
+        name: "sourceMode",
+        value: mode.key,
+        checked: state.sourceMode === mode.key,
+      });
+      input.addEventListener("change", () => {
+        state.sourceMode = mode.key;
+        rerender();
+      });
+      return el("label", { class: "mode-option", for: id }, input, el("span", {}, mode.label));
+    });
+
+    const sourceCard = el(
+      "section",
+      { class: "card setup-section setup-section-source" },
+      setupSectionHeader(2, "Recording source", "Choose how you recorded — Riverside link or separate synced speaker files."),
+      el("div", { class: "mode-row" }, modeButtons),
+    );
+
+    if (state.sourceMode === "riverside") {
+      const linkInput = el("input", {
+        id: "f-riversideLink",
+        type: "url",
+        value: state.riversideLink,
+        placeholder: "https://riverside.fm/studio/your-episode",
+        "aria-invalid": isInvalid("riversideLink") ? "true" : null,
+      });
+      linkInput.addEventListener("input", (e) => {
+        state.riversideLink = e.target.value;
+      });
+      sourceCard.appendChild(
+        field("Riverside recording link", linkInput, "riversideLink", "Paste the link to your Riverside recording session."),
+      );
+    } else {
+      sourceCard.appendChild(
+        el("p", { class: "hint" }, "Add a separate synced video file for each speaker in the cards below — or attach placeholder files to try the flow without real uploads."),
+      );
+    }
+    form.appendChild(sourceCard);
+
+    const speakerStack = el("div", { class: "speaker-stack" });
+    state.speakers.forEach((speaker, index) => {
+      speakerStack.appendChild(renderSpeaker(speaker, index));
+    });
+
+    const speakersCard = el(
+      "section",
+      { class: "card setup-section setup-speakers-card" },
+      setupSectionHeader(
+        3,
+        "Speakers & sources",
+        "One card per speaker — assign Host, Guest 1, or Guest 2 and attach each synced source.",
+      ),
+      renderSpeakerRoleOverview(),
+      speakerStack,
+    );
+
+    const addButton = el("button", { type: "button", class: "btn-secondary setup-add-speaker-btn" }, "+ Add speaker source");
+    addButton.addEventListener("click", () => {
+      readSetupFormState();
+      state.speakers.push(ES.createSpeaker(nextRole()));
+      sanitizeSetupState();
+      rerender();
+    });
+    speakersCard.appendChild(addButton);
+    form.appendChild(speakersCard);
+  }
+
+  function renderCombinedFirstEpisodeImport(prefillName, presetId, showError, preserveState) {
+    setPageIntro("episode-setup");
+    root.innerHTML = "";
+    setStep("First episode import");
+    showErrors = Boolean(showError);
+    errors = showError ? { showName: showError } : {};
+    lastView = "setup";
+
+    if (!activeShowId && !preserveState) {
+      state = ES.createDraft();
+      if (prefillName && SI) {
+        state.episodeName = `${trim(prefillName)} — Episode 1`;
+      }
+    }
+    state.sourceMode = ES.normalizeMode(state.sourceMode);
+    sanitizeSetupState();
+
+    const defaultPreset = STY ? STY.defaultPreset() : null;
+    let selectedPresetId = presetId || (defaultPreset ? defaultPreset.id : "studio-spotlight");
+
+    const form = el("form", {
+      class: "setup setup-import setup-first-episode-import setup-combined-create",
+      novalidate: true,
+    });
+
+    form.appendChild(
+      el(
+        "div",
+        { class: "setup-import-head" },
+        el("p", { class: "eyebrow" }, "First episode import"),
+        el("h2", {}, "Import your first episode"),
+        el(
+          "p",
+          { class: "hint" },
+          "Name your show, paste a Riverside link or attach synced speaker files, assign Host and guest buckets, and add social links — all on this one step.",
+        ),
+      ),
+    );
+
+    form.appendChild(renderImportFlowOutline());
+
+    if (showError) {
+      form.appendChild(
+        el("div", { class: "banner", role: "alert" }, showError),
+      );
+    }
+
+    const showNameInput = el("input", {
+      id: "f-show-name",
+      type: "text",
+      value: prefillName || "",
+      placeholder: "e.g. Founders Unfiltered",
+      "aria-invalid": showError ? "true" : null,
+    });
+
+    const presetSelect = el("select", { id: "f-show-preset", class: "combined-preset-select" });
+    if (STY) {
+      STY.STYLE_PRESETS.forEach((preset) => {
+        presetSelect.appendChild(
+          el("option", { value: preset.id, selected: preset.id === selectedPresetId ? true : null }, preset.name),
+        );
+      });
+    }
+
+    form.appendChild(
+      el(
+        "section",
+        { class: "card setup-section setup-section-show" },
+        setupSectionHeader(0, "Show setup", "Your show name and default episode look."),
+        field("Show name", showNameInput, "showName"),
+        field("Episode look preset", presetSelect, null, "Pick the visual style that carries into this episode."),
+      ),
+    );
+
+    form.appendChild(renderImportReadySummary({ showName: prefillName || "" }));
+
+    function rerenderCombined() {
+      readSetupFormState();
+      const nextShowName = showNameInput.value;
+      selectedPresetId = presetSelect.value;
+      renderCombinedFirstEpisodeImport(nextShowName, selectedPresetId, showError || null, true);
+    }
+
+    rerenderImportView = rerenderCombined;
+
+    appendImportSetupSections(form, rerenderCombined);
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      finishCombinedFirstEpisodeImport(showNameInput.value, presetSelect.value, null);
+    });
+
+    const cancelBtn = el("button", { type: "button", class: "btn-secondary" }, "← Back to library");
+    cancelBtn.addEventListener("click", () => renderShowLibrary());
+
+    form.appendChild(
+      el(
+        "div",
+        { class: "actions setup-actions setup-cta-bar" },
+        cancelBtn,
+        el("button", { type: "submit", class: "btn-primary setup-continue-btn create-show-continue-btn" }, "Create show & continue to audio polish →"),
+      ),
+    );
+
+    root.appendChild(form);
+    clearSpeakerAutofillLeak();
+    if (showErrors) {
+      focusFirstError();
+    }
   }
 
   function renderShowDetail(showId) {
@@ -1373,6 +1735,11 @@
     persistEpisodeSession();
 
     setPageIntro("episode-setup");
+    renderFirstEpisodeImport();
+  }
+
+  function renderFirstEpisodeImport() {
+    setStep("First episode import");
     renderSetup();
   }
 
@@ -1452,6 +1819,10 @@
     if (episodeInput) {
       state.episodeName = episodeInput.value;
     }
+    const checkedMode = document.querySelector('input[name="sourceMode"]:checked');
+    if (checkedMode) {
+      state.sourceMode = checkedMode.value;
+    }
     const linkInput = document.getElementById("f-riversideLink");
     if (linkInput) {
       state.riversideLink = linkInput.value;
@@ -1499,13 +1870,28 @@
 
   function renderSetup() {
     lastView = "setup";
+    rerenderImportView = () => renderSetup();
     sanitizeSetupState();
     setPageIntro("episode-setup");
     root.innerHTML = "";
-    setStep("Step 1 of 8 · Set up episode");
+    const firstImport = isFirstEpisodeImportStep();
+    if (!firstImport) {
+      setStep("Step 1 of 8 · Set up episode");
+    }
     state.sourceMode = ES.normalizeMode(state.sourceMode);
 
-    const form = el("form", { class: "setup setup-import", novalidate: true });
+    const show = activeShowId && LIB ? LIB.getShow(showLibrary, activeShowId) : null;
+    const importHeadline = firstImport && show
+      ? `Import your first episode for ${show.name}`
+      : "Set up your recording and speakers";
+    const importLead = firstImport
+      ? "Paste a Riverside link or attach synced speaker files, assign Host and guest buckets, and add social links — then continue to audio polish."
+      : "Import your synced sources, assign each speaker, and add social links — then continue to audio polish and style.";
+
+    const form = el("form", {
+      class: `setup setup-import${firstImport ? " setup-first-episode-import" : ""}`,
+      novalidate: true,
+    });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       onContinue();
@@ -1515,12 +1901,12 @@
       el(
         "div",
         { class: "setup-import-head" },
-        el("p", { class: "eyebrow" }, "Episode import"),
-        el("h2", {}, "Set up your recording and speakers"),
+        el("p", { class: "eyebrow" }, firstImport ? "First episode import" : "Episode import"),
+        el("h2", {}, importHeadline),
         el(
           "p",
           { class: "hint" },
-          "Import your synced sources, assign each speaker, and add social links — then continue to audio polish and style.",
+          importLead,
         ),
       ),
     );
@@ -1532,6 +1918,10 @@
       form.appendChild(identityBanner);
     }
 
+    if (firstImport) {
+      form.appendChild(renderImportReadySummary());
+    }
+
     if (showErrors && errors && Object.keys(errors).length) {
       form.appendChild(
         el(
@@ -1541,7 +1931,6 @@
           el(
             "ul",
             {},
-            // Show up to the first handful of messages so the banner stays scannable.
             (function () {
               const seen = {};
               const items = [];
@@ -1559,99 +1948,7 @@
       );
     }
 
-    // Episode details
-    const nameInput = el("input", {
-      id: "f-episodeName",
-      type: "text",
-      value: state.episodeName,
-      placeholder: "e.g. Episode 12 — Building in Public",
-      "aria-invalid": isInvalid("episodeName") ? "true" : null,
-    });
-    nameInput.addEventListener("input", (e) => {
-      state.episodeName = e.target.value;
-      sanitizeSetupState();
-    });
-
-    const detailsCard = el(
-      "section",
-      { class: "card setup-section setup-section-episode" },
-      setupSectionHeader(1, "Episode details", "Name this episode so it is easy to find in your show library."),
-      field("Episode name", nameInput, "episodeName"),
-    );
-    form.appendChild(detailsCard);
-
-    // Recording source
-    const modeButtons = ES.SOURCE_MODES.map((mode) => {
-      const id = `mode-${mode.key}`;
-      const input = el("input", {
-        id,
-        type: "radio",
-        name: "sourceMode",
-        value: mode.key,
-        checked: state.sourceMode === mode.key,
-      });
-      input.addEventListener("change", () => {
-        state.sourceMode = mode.key;
-        renderSetup();
-      });
-      return el("label", { class: "mode-option", for: id }, input, el("span", {}, mode.label));
-    });
-
-    const sourceCard = el(
-      "section",
-      { class: "card setup-section setup-section-source" },
-      setupSectionHeader(2, "Recording source", "Choose how you recorded — Riverside link or separate synced speaker files."),
-      el("div", { class: "mode-row" }, modeButtons),
-    );
-
-    if (state.sourceMode === "riverside") {
-      const linkInput = el("input", {
-        id: "f-riversideLink",
-        type: "url",
-        value: state.riversideLink,
-        placeholder: "https://riverside.fm/studio/your-episode",
-        "aria-invalid": isInvalid("riversideLink") ? "true" : null,
-      });
-      linkInput.addEventListener("input", (e) => {
-        state.riversideLink = e.target.value;
-      });
-      sourceCard.appendChild(
-        field("Riverside recording link", linkInput, "riversideLink", "Paste the link to your Riverside recording session."),
-      );
-    } else {
-      sourceCard.appendChild(
-        el("p", { class: "hint" }, "Add a separate synced video file for each speaker in the cards below."),
-      );
-    }
-    form.appendChild(sourceCard);
-
-    // Speakers & sources
-    const speakerStack = el("div", { class: "speaker-stack" });
-    state.speakers.forEach((speaker, index) => {
-      speakerStack.appendChild(renderSpeaker(speaker, index));
-    });
-
-    const speakersCard = el(
-      "section",
-      { class: "card setup-section setup-speakers-card" },
-      setupSectionHeader(
-        3,
-        "Speakers & sources",
-        "One card per speaker — assign Host, Guest 1, or Guest 2 and attach each synced source.",
-      ),
-      renderSpeakerRoleOverview(),
-      speakerStack,
-    );
-
-    const addButton = el("button", { type: "button", class: "btn-secondary setup-add-speaker-btn" }, "+ Add speaker source");
-    addButton.addEventListener("click", () => {
-      readSetupFormState();
-      state.speakers.push(ES.createSpeaker(nextRole()));
-      sanitizeSetupState();
-      renderSetup();
-    });
-    speakersCard.appendChild(addButton);
-    form.appendChild(speakersCard);
+    appendImportSetupSections(form, () => renderSetup());
 
     if (TM) {
       const saved = TM.listTemplates(templateStore);
@@ -1799,8 +2096,33 @@
         speaker.fileSize = file ? file.size : 0;
         chosen.textContent = speaker.fileName ? `Selected: ${speaker.fileName}` : "No file chosen yet";
       });
+      const placeholderBtn = el(
+        "button",
+        {
+          type: "button",
+          class: "btn-secondary file-placeholder-btn",
+        },
+        speaker.fileName ? "Replace placeholder file" : "Attach placeholder file",
+      );
+      placeholderBtn.addEventListener("click", () => {
+        readSetupFormState();
+        ES.attachPlaceholderFile(speaker);
+        if (rerenderImportView) {
+          rerenderImportView();
+        } else {
+          renderSetup();
+        }
+      });
       sourceBlock.appendChild(field("Speaker video file", fileInput, `speaker:${index}:source`));
       sourceBlock.appendChild(chosen);
+      sourceBlock.appendChild(
+        el(
+          "p",
+          { class: "hint file-placeholder-hint" },
+          "No real file handy? Attach a synced placeholder to complete the import step in the sandbox.",
+        ),
+      );
+      sourceBlock.appendChild(placeholderBtn);
     } else {
       const trackInput = el("input", {
         id: `f-sp-${index}-source`,
@@ -2117,46 +2439,42 @@
     };
   }
 
-  function renderImportRecapCard(summary) {
+  function renderEpisodeImportRecap(summary) {
     if (!ES || !summary) {
       return null;
     }
     const recap = ES.buildImportRecap(summary, {
       appliedStyle: brandedAppliedStyle(summary),
     });
-    const speakerList = el("ul", { class: "workspace-import-speakers" });
-    recap.speakerLines.forEach((line) => {
-      const parts = [
-        el("strong", {}, line.role),
-        ` — ${line.name}`,
-        el("span", { class: "workspace-import-source" }, ` · ${line.sourceLabel}`),
-      ];
-      if (line.socialCount > 0) {
-        parts.push(
-          el(
-            "span",
-            { class: "workspace-import-social" },
-            ` · ${line.socialCount} social link${line.socialCount === 1 ? "" : "s"}`,
-          ),
-        );
-      }
-      speakerList.appendChild(el("li", { class: "workspace-import-speaker" }, parts));
+    const styleLine = recap.styleLine || importStyleSummaryLine();
+    const speakerItems = recap.speakerLines.map((line) => {
+      const label = line.name ? `${line.name} (${line.role})` : line.role;
+      return el(
+        "li",
+        { class: "episode-import-recap-speaker" },
+        el("strong", {}, label),
+        " — ",
+        line.sourceLabel,
+      );
     });
+
     return el(
       "section",
-      { class: "card workspace-import-recap" },
-      el("h3", {}, "Imported episode setup"),
+      { class: "card episode-import-recap" },
+      el("h3", {}, "Episode import summary"),
       el(
         "p",
-        { class: "hint workspace-import-source-line" },
-        el("strong", {}, recap.sourceModeLabel),
-        recap.sourceDetail && recap.sourceDetail !== recap.sourceModeLabel
-          ? ` — ${recap.sourceDetail}`
-          : null,
+        { class: "episode-import-recap-source" },
+        `${recap.sourceModeLabel}${recap.sourceDetail && recap.sourceDetail !== recap.sourceModeLabel ? `: ${recap.sourceDetail}` : ""}`,
       ),
-      speakerList,
-      recap.styleLine
-        ? el("p", { class: "workspace-import-style" }, `Style: ${recap.styleLine}`)
+      styleLine ? el("p", { class: "episode-import-recap-style" }, `Episode look: ${styleLine}`) : null,
+      el("ul", { class: "episode-import-recap-speakers" }, speakerItems),
+      recap.socialLinkCount > 0
+        ? el(
+          "p",
+          { class: "hint episode-import-recap-social" },
+          `${recap.socialLinkCount} social link${recap.socialLinkCount === 1 ? "" : "s"} saved for speaker context`,
+        )
         : null,
     );
   }
@@ -2181,7 +2499,7 @@
       ),
     );
 
-    const importRecap = renderImportRecapCard(summary);
+    const importRecap = renderEpisodeImportRecap(summary);
     if (importRecap) {
       view.appendChild(importRecap);
     }
