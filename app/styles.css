@@ -863,6 +863,7 @@ button.ghost:hover,
 
 .stage-grid .episode-look-frames {
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
 }
 
 .episode-look-frame {
@@ -953,6 +954,99 @@ button.ghost:hover,
   margin: 0;
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+/* Preset-specific preview treatments (#120) */
+.preset-split-stage .episode-look-chrome {
+  color: #23201c;
+}
+
+.preset-split-stage .episode-look-stage {
+  border-color: rgba(224, 86, 59, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(224, 86, 59, 0.12);
+}
+
+.preset-split-stage .episode-look-caption-bar {
+  border-radius: 0 0 10px 10px;
+  margin-top: 12px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.preset-panel-grid .episode-look-frames {
+  gap: 6px;
+}
+
+.preset-panel-grid .episode-look-video {
+  min-height: 44px;
+}
+
+.preset-panel-grid .episode-look-name-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: #0f1a2b;
+  max-width: calc(100% - 12px);
+  line-height: 1.2;
+}
+
+.preset-panel-grid .episode-look-video {
+  position: relative;
+}
+
+.preset-panel-grid.caption-mode-name-tag .episode-look-meta {
+  margin-top: 6px;
+}
+
+.preset-studio-spotlight .episode-look-caption-lower-third {
+  max-width: 72%;
+  margin-top: -28px;
+  margin-left: 8px;
+  position: relative;
+  z-index: 1;
+  border-radius: 6px 6px 6px 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+.preset-bold-broadcast .episode-look-overlay {
+  font-size: 11px;
+  padding: 5px 10px;
+  letter-spacing: 0.12em;
+  box-shadow: 0 0 12px rgba(255, 93, 143, 0.45);
+}
+
+.preset-bold-broadcast .episode-look-caption-broadcast {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 20px rgba(255, 93, 143, 0.35);
+}
+
+.preset-bold-broadcast.episode-look-card .episode-look-caption-broadcast {
+  font-size: 9px;
+  padding: 8px 10px;
+}
+
+.preset-bold-broadcast .episode-look-pacing {
+  background: rgba(255, 93, 143, 0.22);
+  border-color: rgba(255, 93, 143, 0.45);
+}
+
+.preset-split-stage .episode-look-pacing {
+  background: rgba(224, 86, 59, 0.14);
+  border-color: rgba(224, 86, 59, 0.35);
 }
 
 @media (max-width: 860px) {

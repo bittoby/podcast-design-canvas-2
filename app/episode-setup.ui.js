@@ -4079,8 +4079,9 @@
       return el("div", { class: "episode-look-preview episode-look-empty" }, "Choose a preset to preview the episode look.");
     }
     const previewSize = size || "hero";
+    const captionVariant = look.captionVariant || "lower-third";
     const preview = el("div", {
-      class: `episode-look-preview episode-look-${previewSize} stage-${look.layoutId} preset-${look.presetId}`,
+      class: `episode-look-preview episode-look-${previewSize} stage-${look.layoutId} preset-${look.presetId} caption-mode-${captionVariant}`,
     });
 
     preview.appendChild(
@@ -4088,7 +4089,14 @@
         "div",
         { class: "episode-look-chrome" },
         el("span", { class: "episode-look-title" }, look.episodeTitle),
-        el("span", { class: "episode-look-overlay" }, look.overlayLabel),
+        el(
+          "span",
+          {
+            class: "episode-look-overlay",
+            style: `background:${look.theme.accent};color:${look.theme.background};border-color:${look.theme.accent};`,
+          },
+          look.overlayLabel,
+        ),
       ),
     );
 
@@ -4104,18 +4112,32 @@
         style: `background:linear-gradient(160deg, ${frame.tile}, ${look.theme.surface});`,
       });
       video.appendChild(el("span", { class: "episode-look-initials" }, frame.initials));
+      if (captionVariant === "name-tag") {
+        video.appendChild(
+          el(
+            "span",
+            { class: "episode-look-name-tag", style: `background:${look.theme.accent};` },
+            look.captionText,
+          ),
+        );
+      }
       frameEl.appendChild(video);
       frameEl.appendChild(el("div", { class: "episode-look-nameplate" }, frame.name));
       framesWrap.appendChild(frameEl);
     });
     stage.appendChild(framesWrap);
-    stage.appendChild(
-      el(
-        "div",
-        { class: "episode-look-caption", style: `background:${look.theme.accent};` },
-        look.captionText,
-      ),
-    );
+    if (captionVariant !== "name-tag") {
+      stage.appendChild(
+        el(
+          "div",
+          {
+            class: `episode-look-caption episode-look-caption-${captionVariant}`,
+            style: `background:${look.theme.accent};color:${look.theme.background};`,
+          },
+          look.captionText,
+        ),
+      );
+    }
     stage.appendChild(
       el(
         "div",

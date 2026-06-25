@@ -21,9 +21,12 @@ const styles = fs.readFileSync(path.join(__dirname, "../app/styles.css"), "utf8"
 
 test("buildEpisodeLook returns realistic multi-speaker frames with overlay and caption cues", () => {
   const look = preview.buildEpisodeLook("split-stage", { showName: "Founders Unfiltered" });
-  assert.strictEqual(look.frames.length, 3);
+  assert.strictEqual(look.frames.length, 2);
+  assert.strictEqual(look.layoutId, "split");
+  assert.strictEqual(look.overlayLabel, "Founders");
+  assert.strictEqual(look.captionVariant, "bar");
+  assert.strictEqual(look.pacingLabel, "Relaxed");
   assert.ok(look.frames.every((frame) => frame.name && frame.initials));
-  assert.ok(look.overlayLabel);
   assert.ok(look.captionText);
   assert.ok(look.episodeTitle.includes("Founders Unfiltered"));
 });
@@ -58,14 +61,32 @@ test("new-show setup uses rich episode look previews instead of abstract layout 
 
 test("ACCEPTANCE: every named preset produces a distinct publish-ready look model", () => {
   const layouts = new Set();
+  const captionVariants = new Set();
+  const pacingLabels = new Set();
+  const overlays = new Set();
   style.STYLE_PRESETS.forEach((preset) => {
     const look = preview.buildEpisodeLook(preset.id, { showName: "Demo Show" });
     assert.ok(look.presetName);
     assert.ok(look.captionStyle);
     assert.ok(look.formatCue);
+    assert.ok(look.captionVariant);
     layouts.add(look.layoutId);
+    captionVariants.add(look.captionVariant);
+    pacingLabels.add(look.pacingLabel);
+    overlays.add(look.overlayLabel);
   });
   assert.ok(layouts.size >= 3);
+  assert.strictEqual(captionVariants.size, style.STYLE_PRESETS.length);
+  assert.ok(pacingLabels.size >= 2);
+  assert.strictEqual(overlays.size, style.STYLE_PRESETS.length);
+});
+
+test("ACCEPTANCE: create-show preset previews use distinct caption modes in CSS", () => {
+  assert.ok(styles.includes(".preset-split-stage"));
+  assert.ok(styles.includes(".preset-panel-grid"));
+  assert.ok(styles.includes(".preset-bold-broadcast"));
+  assert.ok(styles.includes(".episode-look-caption-broadcast"));
+  assert.ok(ui.includes("caption-mode-"));
 });
 
 console.log(`\nstyle look preview: ${passed} assertions passed`);
