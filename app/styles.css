@@ -4105,3 +4105,16 @@ button.ghost:hover,
 .show-templates-empty {
   margin: 0;
 }
+
+.show-library-scope-note {
+  margin-top: 8px;
+  max-width: 52rem;
+}
+
+.setup-import-nav {
+  margin-top: 12px;
+}
+
+.setup-library-link {
+  white-space: nowrap;
+}

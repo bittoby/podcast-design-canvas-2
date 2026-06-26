@@ -832,7 +832,7 @@
       { class: "btn-primary home-primary-cta", type: "button" },
       "Create show & import episode →",
     );
-    primaryStartBtn.addEventListener("click", () => startNewShowImportFlow());
+    primaryStartBtn.addEventListener("click", () => renderNewShowForm("", "", null));
     startHero.appendChild(primaryStartBtn);
 
     const secondaryLinks = el("div", { class: "home-secondary-links" });
@@ -856,6 +856,18 @@
     const galleryCard = renderHomeGallerySpotlight();
 
     const listEl = el("div", { class: "show-library-list" });
+
+    if (shows.length) {
+      header.appendChild(
+        el(
+          "p",
+          { class: "hint show-library-scope-note" },
+          shows.length === 1
+            ? "This show keeps its own episodes and saved layouts — open it to see scoped content."
+            : `${shows.length} shows saved — each keeps its own episodes and saved layouts. Open a show to see scoped episodes, templates, and next actions.`,
+        ),
+      );
+    }
 
     if (!shows.length) {
       listEl.appendChild(
@@ -1841,6 +1853,18 @@
     return `${episodeLine} · ${presetLine} · ${sourceLine}`;
   }
 
+  function renderShowLibraryLink() {
+    if (!LIB || !showLibrary.shows || !showLibrary.shows.length) {
+      return null;
+    }
+    const link = el("button", { type: "button", class: "btn-secondary btn-sm setup-library-link" }, "← Show Library");
+    link.addEventListener("click", () => {
+      persistEpisodeSession();
+      renderShowLibrary();
+    });
+    return link;
+  }
+
   function renderSetupContinueBar() {
     const bar = el("div", { class: "actions setup-actions setup-cta-bar setup-cta-bar-sticky" });
     const summary = el(
@@ -2008,19 +2032,22 @@
       onContinue();
     });
 
-    form.appendChild(
+    const importHead = el(
+      "div",
+      { class: "setup-import-head" },
+      el("p", { class: "eyebrow" }, firstImport ? "First episode import" : "Episode import"),
+      el("h2", {}, importHeadline),
       el(
-        "div",
-        { class: "setup-import-head" },
-        el("p", { class: "eyebrow" }, firstImport ? "First episode import" : "Episode import"),
-        el("h2", {}, importHeadline),
-        el(
-          "p",
-          { class: "hint" },
-          importLead,
-        ),
+        "p",
+        { class: "hint" },
+        importLead,
       ),
     );
+    const libraryLink = renderShowLibraryLink();
+    if (libraryLink) {
+      importHead.appendChild(el("div", { class: "setup-import-nav" }, libraryLink));
+    }
+    form.appendChild(importHead);
 
     form.appendChild(renderImportFlowOutline(firstImport, pendingShowCreation));
 
