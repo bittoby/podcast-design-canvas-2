@@ -289,6 +289,41 @@
     return "Optional speaker links help transcript spellings and make captions and on-screen moments more accurate. Skip them anytime — the import still works.";
   }
 
+  function defaultImportShowName() {
+    return "My podcast show";
+  }
+
+  // When a valid import source is present but optional identity fields are blank, fill
+  // creator-friendly defaults so Continue can land in the workspace handoff without
+  // blocking on every text field (same spirit as placeholder files for upload review).
+  function canApplyImportContinueDefaults(draft) {
+    const data = draft && typeof draft === "object" ? draft : {};
+    const mode = normalizeMode(data.sourceMode);
+    if (mode === "riverside") {
+      return isLikelyUrl(trim(data.riversideLink));
+    }
+    const speakers = Array.isArray(data.speakers) ? data.speakers : [];
+    return speakers.length > 0 && speakers.every((speaker) => trim(speaker.fileName));
+  }
+
+  function applyImportContinueDefaults(draft, options) {
+    const data = draft && typeof draft === "object" ? draft : createDraft();
+    if (!canApplyImportContinueDefaults(data)) {
+      return data;
+    }
+    const showName = trim((options && options.showName) || "") || defaultImportShowName();
+    if (!trim(data.episodeName)) {
+      data.episodeName = `${showName} — Episode 1`;
+    }
+    (Array.isArray(data.speakers) ? data.speakers : []).forEach((raw) => {
+      const speaker = raw && typeof raw === "object" ? raw : createSpeaker("Host");
+      if (!trim(speaker.name) && trim(speaker.role)) {
+        speaker.name = speaker.role;
+      }
+    });
+    return data;
+  }
+
   function buildImportHandoff(summary) {
     const data = summary && typeof summary === "object" ? summary : {};
     const mode = normalizeMode(data.sourceMode);
@@ -342,6 +377,9 @@
     roleSelectOptions,
     socialLinksBenefitLine,
     importSocialContextCueLine,
+    defaultImportShowName,
+    canApplyImportContinueDefaults,
+    applyImportContinueDefaults,
     buildImportHandoff,
     summarize,
     validateDraft,

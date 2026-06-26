@@ -1680,6 +1680,69 @@
     sanitizeSetupState();
   }
 
+  function writeSetupFormFromState() {
+    const episodeInput = document.getElementById("f-episodeName");
+    if (episodeInput && trim(state.episodeName) && !trim(episodeInput.value)) {
+      episodeInput.value = state.episodeName;
+    }
+    state.speakers.forEach((speaker, index) => {
+      const nameInput = document.getElementById(`f-sp-${index}-name`);
+      if (nameInput && trim(speaker.name) && !trim(nameInput.value)) {
+        nameInput.value = speaker.name;
+      }
+    });
+  }
+
+  function applyReadyImportDefaults() {
+    if (!ES.canApplyImportContinueDefaults(state)) {
+      return;
+    }
+    if (pendingShowCreation) {
+      const showNameInput = document.getElementById("f-show-name");
+      if (showNameInput && !trim(showNameInput.value)) {
+        showNameInput.value = ES.defaultImportShowName();
+      }
+    }
+    const showName = trim(document.getElementById("f-show-name") && document.getElementById("f-show-name").value)
+      || (activeShowId && LIB ? (LIB.getShow(showLibrary, activeShowId) || {}).name : "")
+      || ES.defaultImportShowName();
+    state = ES.applyImportContinueDefaults(state, { showName });
+    writeSetupFormFromState();
+  }
+
+  function syncImportReadyBanner() {
+    const form = root.querySelector("form.setup-import");
+    if (!form) {
+      return;
+    }
+    const existing = form.querySelector(".setup-import-ready-banner");
+    if (!ES.canApplyImportContinueDefaults(state)) {
+      if (existing) {
+        existing.remove();
+      }
+      return;
+    }
+    if (existing) {
+      return;
+    }
+    const actions = form.querySelector(".setup-actions");
+    const banner = el(
+      "div",
+      { class: "banner setup-import-ready-banner", role: "status" },
+      el("strong", {}, "Import source ready"),
+      el(
+        "p",
+        { class: "hint" },
+        "Click Continue to save this source, keep each speaker bucket, and open the workspace import summary. Any blank show, episode, or speaker names use friendly defaults until you rename them.",
+      ),
+    );
+    if (actions) {
+      form.insertBefore(banner, actions);
+    } else {
+      form.appendChild(banner);
+    }
+  }
+
   function clearSpeakerAutofillLeak() {
     if (!SI) {
       return;
@@ -1859,6 +1922,7 @@
       });
       linkInput.addEventListener("input", (e) => {
         state.riversideLink = e.target.value;
+        syncImportReadyBanner();
       });
       sourceCard.appendChild(
         field("Riverside recording link", linkInput, "riversideLink", "Paste the link to your Riverside recording session."),
@@ -1900,6 +1964,10 @@
     });
     speakersCard.appendChild(addButton);
     form.appendChild(speakersCard);
+
+    if (ES.canApplyImportContinueDefaults(state)) {
+      syncImportReadyBanner();
+    }
 
     if (TM) {
       const saved = TM.listTemplates(templateStore);
@@ -1947,6 +2015,7 @@
     if (showErrors) {
       focusFirstError();
     }
+    syncImportReadyBanner();
     persistEpisodeSession();
   }
 
@@ -2124,11 +2193,13 @@
 
   function onContinue() {
     readSetupFormState();
+    applyReadyImportDefaults();
     if (pendingShowCreation && !finalizePendingShowCreation()) {
       renderSetup();
       return;
     }
     readSetupFormState();
+    applyReadyImportDefaults();
     const result = ES.validateDraft(state);
     errors = result.errors;
     showErrors = true;

@@ -73,12 +73,27 @@ test("workspace setup stage summary names imported speakers and source", () => {
   assert.ok(setupStage.summary.includes("context ready to review"));
 });
 
+test("applyImportContinueDefaults completes a riverside draft when names are still blank", () => {
+  const draft = setup.createDraft();
+  draft.riversideLink = "https://riverside.fm/studio/review-path";
+  assert.strictEqual(setup.canApplyImportContinueDefaults(draft), true);
+  const ready = setup.applyImportContinueDefaults(draft, { showName: "Review Show" });
+  assert.strictEqual(ready.episodeName, "Review Show — Episode 1");
+  assert.deepStrictEqual(
+    ready.speakers.map((speaker) => speaker.name),
+    ["Host", "Guest 1", "Guest 2"],
+  );
+  assert.strictEqual(setup.validateDraft(ready).ok, true);
+});
+
 test("import handoff UI lands in workspace immediately after setup continue", () => {
   const continueBlock = ui.slice(ui.indexOf("function onContinue()"), ui.indexOf("function focusFirstError()"));
   assert.ok(continueBlock.includes("renderWorkspace(summary)"));
   assert.ok(!/if \(SC && !contextApproved\)[\s\S]*renderContextReview\(summary\)/.test(continueBlock));
   assert.ok(ui.includes("episode-import-handoff"));
   assert.ok(ui.includes("Import accepted"));
+  assert.ok(ui.includes("applyReadyImportDefaults"));
+  assert.ok(ui.includes("setup-import-ready-banner"));
 });
 
 test("ACCEPTANCE: completing import produces workspace handoff data and blocks invalid drafts", () => {
@@ -88,10 +103,14 @@ test("ACCEPTANCE: completing import produces workspace handoff data and blocks i
   assert.ok(invalidResult.errors.riversideLink);
   assert.ok(Object.keys(invalidResult.errors).some((key) => key.indexOf("speaker:") === 0));
 
-  const valid = setup.summarize(completeRiversideDraft());
-  const handoff = setup.buildImportHandoff(valid);
+  const riversideOnly = setup.createDraft();
+  riversideOnly.riversideLink = "https://riverside.fm/studio/probe-path";
+  const ready = setup.applyImportContinueDefaults(riversideOnly, { showName: "Probe Show" });
+  assert.strictEqual(setup.validateDraft(ready).ok, true);
+  const handoff = setup.buildImportHandoff(setup.summarize(ready));
   assert.strictEqual(handoff.speakers.length, 3);
   assert.ok(handoff.speakers.every((speaker) => speaker.role && speaker.sourceLabel));
+  assert.ok(handoff.sourceDetail.includes("riverside.fm"));
   assert.ok(handoff.confirmationLead.length > 0);
 });
 
