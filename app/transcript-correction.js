@@ -39,22 +39,31 @@
     const speakers = Array.isArray(episode.speakers) ? episode.speakers : [];
     const SC = socialContextApi();
     if (contextReview && Array.isArray(contextReview.speakers) && contextReview.speakers.length) {
-      return contextReview.speakers.map((entry) => ({
-        role: entry.role,
-        label: entry.displayName,
-        brand: entry.brand || "",
-        topicTerms: Array.isArray(entry.topics) ? entry.topics.slice() : [],
-        spellingHints: Array.isArray(entry.spellingHints) ? entry.spellingHints.slice() : [],
-      }));
+      return contextReview.speakers.map((entry) => {
+        const episodeSpeaker = speakers.find((speaker) => speaker.role === entry.role);
+        const confirmedName = trim(episodeSpeaker && episodeSpeaker.name);
+        const label = confirmedName || entry.displayName;
+        const hints = SC
+          ? SC.sanitizeSpellingHints(entry.spellingHints, label)
+          : (Array.isArray(entry.spellingHints) ? entry.spellingHints.slice() : []);
+        return {
+          role: entry.role,
+          label: label,
+          brand: entry.brand || "",
+          topicTerms: Array.isArray(entry.topics) ? entry.topics.slice() : [],
+          spellingHints: hints,
+        };
+      });
     }
     return speakers.map((speaker) => {
       const derived = SC ? SC.deriveSpeakerContext(speaker) : {};
+      const label = trim(speaker.name) || derived.displayName || "Unnamed speaker";
       return {
         role: speaker.role || "Speaker",
-        label: speaker.name || derived.displayName || "Unnamed speaker",
+        label: label,
         brand: derived.brand || "",
         topicTerms: derived.topics || [],
-        spellingHints: derived.spellingHints || [],
+        spellingHints: SC ? SC.sanitizeSpellingHints(derived.spellingHints, label) : (derived.spellingHints || []),
       };
     });
   }
@@ -66,10 +75,18 @@
 
   function buildReplacements(speakers) {
     const replacements = [];
+    const SC = socialContextApi();
     (speakers || []).forEach((speaker) => {
+      const label = trim(speaker.label);
       (speaker.spellingHints || []).forEach((hint) => {
-        if (hint && speaker.label && hint.toLowerCase() !== speaker.label.toLowerCase()) {
-          replacements.push({ from: hint, to: speaker.label, kind: "speaker" });
+        if (!hint || !label) {
+          return;
+        }
+        if (SC && SC.isUnsafeSpellingHint(hint, label)) {
+          return;
+        }
+        if (hint.toLowerCase() !== label.toLowerCase()) {
+          replacements.push({ from: hint, to: label, kind: "speaker" });
         }
       });
       if (speaker.brand) {
@@ -101,8 +118,17 @@
     if (!next) {
       return next;
     }
-    (replacements || []).forEach((item) => {
+    const SC = socialContextApi();
+    const sorted = (replacements || []).slice().sort((a, b) => (b.from || "").length - (a.from || "").length);
+    sorted.forEach((item) => {
       if (!item.from || !item.to) {
+        return;
+      }
+      if (SC && item.kind === "speaker" && SC.isUnsafeSpellingHint(item.from, item.to)) {
+        return;
+      }
+      if (SC && item.kind === "speaker") {
+        next = SC.safeReplaceHint(next, item.from, item.to);
         return;
       }
       next = next.replace(new RegExp(escapeRegExp(item.from), "gi"), item.to);
@@ -375,7 +401,14 @@
     }
     return list.map((speaker) => {
       const corrected = speakerByRole(review, speaker.role);
-      return corrected ? Object.assign({}, speaker, { name: corrected.label }) : speaker;
+      if (!corrected) {
+        return speaker;
+      }
+      const confirmedName = trim(speaker.name);
+      if (confirmedName && confirmedName.toLowerCase() === trim(corrected.label).toLowerCase()) {
+        return speaker;
+      }
+      return Object.assign({}, speaker, { name: corrected.label });
     });
   }
 

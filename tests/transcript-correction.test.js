@@ -135,7 +135,6 @@ test("ACCEPTANCE: edit transcript lines, apply corrections, and see updates acro
   const draft = draftWithSocial();
   const episode = setup.summarize(draft);
   const contextReview = context.approveReview(context.updateSpeaker(context.createReview(episode), 0, {
-    displayName: "Sam R. Rivera",
     brand: "Rivera Media",
     spellingHints: "Sam Rivira, Sam River",
   }));
@@ -145,9 +144,11 @@ test("ACCEPTANCE: edit transcript lines, apply corrections, and see updates acro
     momentsBoard: board,
   });
 
+  assert.strictEqual(review.speakers[0].label, "Sam Rivera");
+
   const captionLine = review.lines.find((line) => line.kind === "caption");
   review = correction.updateLine(review, captionLine.id, {
-    text: "Sam R. Rivera: Welcome back to Founders Unfiltered",
+    text: "Sam Rivera: Welcome back to Founders Unfiltered",
   });
   review = correction.approveCorrection(review);
 
@@ -160,10 +161,11 @@ test("ACCEPTANCE: edit transcript lines, apply corrections, and see updates acro
 
   board = applied.momentsBoard;
   const caption = board.moments.find((moment) => moment.type === "caption");
-  assert.ok(caption.text.includes("Sam R. Rivera"));
-  assert.ok(applied.canvasDoc.captionText.includes("Sam R. Rivera"));
-  assert.ok(applied.publishPackage.description.includes("Sam R. Rivera"));
-  assert.strictEqual(applied.speakers[0].name, "Sam R. Rivera");
+  assert.ok(caption.text.includes("Sam Rivera"));
+  assert.ok(!caption.text.includes("Sam Rivira"));
+  assert.ok(applied.canvasDoc.captionText.includes("Sam Rivera"));
+  assert.ok(applied.publishPackage.description.includes("Sam Rivera"));
+  assert.strictEqual(applied.speakers[0].name, "Sam Rivera");
 });
 
 console.log(`\ntranscript correction: ${passed} assertions passed`);

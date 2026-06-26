@@ -80,32 +80,58 @@
     return topics.slice(0, 3);
   }
 
+  function isUnsafeSpellingHint(hint, confirmedName) {
+    const h = trim(hint).toLowerCase();
+    const c = trim(confirmedName).toLowerCase();
+    if (!h || !c) {
+      return true;
+    }
+    if (h === c) {
+      return true;
+    }
+    // Prefix hints corrupt already-correct names (e.g. "Sam River" inside "Sam Rivera" → "Sam Riveraa").
+    if (c.startsWith(h)) {
+      return true;
+    }
+    return false;
+  }
+
+  function sanitizeSpellingHints(hints, confirmedName) {
+    const seen = {};
+    return (Array.isArray(hints) ? hints : [])
+      .map(trim)
+      .filter(Boolean)
+      .filter((hint) => !isUnsafeSpellingHint(hint, confirmedName))
+      .filter((hint) => {
+        const key = hint.toLowerCase();
+        if (seen[key]) {
+          return false;
+        }
+        seen[key] = true;
+        return true;
+      });
+  }
+
   function spellingHints(name, socialHandle) {
-    const display = trim(name);
+    const confirmed = trim(name);
     const hints = [];
-    if (display) {
-      hints.push(display);
-      const parts = display.split(/\s+/).filter(Boolean);
+    if (confirmed) {
+      const parts = confirmed.split(/\s+/).filter(Boolean);
       if (parts.length >= 2) {
-        hints.push(parts.join(""));
-        hints.push(`${parts[0]} ${parts[1].charAt(0)}.`);
-        if (parts[1].length > 2) {
-          hints.push(`${parts[0]} ${parts[1].slice(0, -1)}`);
+        const joined = parts.join("");
+        if (joined.toLowerCase() !== confirmed.toLowerCase()) {
+          hints.push(joined);
+        }
+        const abbreviated = `${parts[0]} ${parts[1].charAt(0)}.`;
+        if (!isUnsafeSpellingHint(abbreviated, confirmed)) {
+          hints.push(abbreviated);
         }
       }
     }
-    if (socialHandle && socialHandle.toLowerCase() !== display.toLowerCase()) {
+    if (socialHandle && socialHandle.toLowerCase() !== confirmed.toLowerCase()) {
       hints.push(socialHandle);
     }
-    const seen = {};
-    return hints.filter((hint) => {
-      const key = hint.toLowerCase();
-      if (!hint || seen[key]) {
-        return false;
-      }
-      seen[key] = true;
-      return true;
-    });
+    return sanitizeSpellingHints(hints, confirmed);
   }
 
   function deriveSpeakerContext(speaker) {
@@ -168,11 +194,13 @@
       }
     }
     if (changes.spellingHints != null) {
+      let raw = [];
       if (Array.isArray(changes.spellingHints)) {
-        updated.spellingHints = changes.spellingHints.map(trim).filter(Boolean);
+        raw = changes.spellingHints.map(trim).filter(Boolean);
       } else if (typeof changes.spellingHints === "string") {
-        updated.spellingHints = changes.spellingHints.split(",").map(trim).filter(Boolean);
+        raw = changes.spellingHints.split(",").map(trim).filter(Boolean);
       }
+      updated.spellingHints = sanitizeSpellingHints(raw, updated.displayName);
     }
     if (changes.approved != null) {
       updated.approved = Boolean(changes.approved);
@@ -203,6 +231,16 @@
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
+  function safeReplaceHint(text, hint, replacement) {
+    if (!trim(text) || !trim(hint) || !trim(replacement)) {
+      return trim(text);
+    }
+    if (isUnsafeSpellingHint(hint, replacement)) {
+      return trim(text);
+    }
+    return trim(text).replace(new RegExp(`\\b${escapeRegExp(hint)}\\b`, "gi"), replacement);
+  }
+
   function applyHintsToText(text, review, speakerRole, speakerName) {
     const original = trim(text);
     if (!original || !review || !review.approved) {
@@ -212,12 +250,13 @@
     if (!ctx) {
       return original;
     }
+    const confirmedName = trim(ctx.displayName);
+    const hints = sanitizeSpellingHints(ctx.spellingHints, confirmedName)
+      .filter((hint) => hint.toLowerCase() !== confirmedName.toLowerCase())
+      .sort((a, b) => b.length - a.length);
     let next = original;
-    ctx.spellingHints.forEach((hint) => {
-      if (!hint || hint.toLowerCase() === ctx.displayName.toLowerCase()) {
-        return;
-      }
-      next = next.replace(new RegExp(escapeRegExp(hint), "gi"), ctx.displayName);
+    hints.forEach((hint) => {
+      next = safeReplaceHint(next, hint, confirmedName);
     });
     return next;
   }
@@ -275,6 +314,10 @@
         if (!ctx) {
           return frame;
         }
+        const frameName = trim(frame.name);
+        if (frameName && frameName.toLowerCase() === trim(ctx.displayName).toLowerCase()) {
+          return frame;
+        }
         return Object.assign({}, frame, { name: ctx.displayName });
       });
     }
@@ -323,6 +366,9 @@
   const api = {
     brandFromWebsite,
     handleFromSocialUrl,
+    isUnsafeSpellingHint,
+    sanitizeSpellingHints,
+    safeReplaceHint,
     deriveSpeakerContext,
     createReview,
     updateSpeaker,

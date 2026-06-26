@@ -47,7 +47,8 @@ test("createReview derives brand and spelling hints from social links", () => {
   assert.strictEqual(review.speakers.length, 3);
   assert.strictEqual(review.speakers[0].displayName, "Sam Rivera");
   assert.strictEqual(review.speakers[0].brand, "Samrivera");
-  assert.ok(review.speakers[0].spellingHints.includes("Sam Rivera"));
+  assert.ok(!review.speakers[0].spellingHints.includes("Sam Rivera"));
+  assert.ok(!review.speakers[0].spellingHints.includes("Sam River"));
   assert.ok(review.speakers[0].topics.includes("Samrivera"));
   assert.strictEqual(review.speakers[1].displayName, "Dana Kim");
   assert.ok(review.speakers[1].spellingHints.length >= 1);
