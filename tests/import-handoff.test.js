@@ -73,14 +73,15 @@ test("workspace setup stage summary names imported speakers and source", () => {
   assert.ok(setupStage.summary.includes("context ready to review"));
 });
 
-test("import handoff UI and styles expose accepted-import recap", () => {
-  assert.ok(ui.includes("ES.buildImportHandoff(summary)"));
+test("import handoff UI lands in workspace immediately after setup continue", () => {
+  const continueBlock = ui.slice(ui.indexOf("function onContinue()"), ui.indexOf("function focusFirstError()"));
+  assert.ok(continueBlock.includes("renderWorkspace(summary)"));
+  assert.ok(!/if \(SC && !contextApproved\)[\s\S]*renderContextReview\(summary\)/.test(continueBlock));
   assert.ok(ui.includes("episode-import-handoff"));
   assert.ok(ui.includes("Import accepted"));
-  assert.ok(styles.includes(".episode-import-handoff-speakers"));
 });
 
-test("ACCEPTANCE: invalid import stays blocked while valid import produces handoff data", () => {
+test("ACCEPTANCE: completing import produces workspace handoff data and blocks invalid drafts", () => {
   const invalid = setup.createDraft();
   const invalidResult = setup.validateDraft(invalid);
   assert.strictEqual(invalidResult.ok, false);
@@ -91,6 +92,7 @@ test("ACCEPTANCE: invalid import stays blocked while valid import produces hando
   const handoff = setup.buildImportHandoff(valid);
   assert.strictEqual(handoff.speakers.length, 3);
   assert.ok(handoff.speakers.every((speaker) => speaker.role && speaker.sourceLabel));
+  assert.ok(handoff.confirmationLead.length > 0);
 });
 
 console.log(`\nimport handoff: ${passed} assertions passed`);

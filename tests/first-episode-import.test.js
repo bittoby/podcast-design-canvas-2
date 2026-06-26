@@ -90,14 +90,12 @@ test("ACCEPTANCE: primary CTA lands on first-episode import with Riverside, file
   assert.ok(ui.includes("renderFirstEpisodeImport"));
   assert.ok(ui.includes("First episode import"));
   assert.ok(ui.includes("setup-first-episode-import"));
-  assert.ok(ui.includes("import-ready-summary"));
   assert.ok(ui.includes("file-placeholder-btn"));
   assert.ok(ui.includes("Attach placeholder file"));
   assert.ok(ui.includes("f-riversideLink"));
   assert.ok(ui.includes("renderEpisodeImportRecap"));
-  assert.ok(ui.includes("episode-import-recap"));
-  assert.ok(styles.includes(".import-ready-summary"));
-  assert.ok(styles.includes(".episode-import-recap"));
+  assert.ok(ui.includes("episode-import-handoff"));
+  assert.ok(styles.includes(".episode-import-handoff"));
 });
 
 console.log(`\nfirst episode import: ${passed} assertions passed`);

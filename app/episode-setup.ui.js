@@ -1751,10 +1751,6 @@
       form.appendChild(identityBanner);
     }
 
-    if (firstImport) {
-      form.appendChild(renderImportReadySummary());
-    }
-
     if (showErrors && errors && Object.keys(errors).length) {
       form.appendChild(
         el(
@@ -2140,15 +2136,12 @@
       const summary = ES.summarize(state);
       if (SC && !contextApproved) {
         contextReview = SC.createReview(summary);
-        renderContextReview(summary);
-      } else if (AP && !appliedAudioPolish) {
-        audioPolish = AP.createPolish(summary);
-        renderAudioPolish(summary);
-      } else if (STY && !appliedStyle) {
-        renderStyle(summary);
-      } else {
-        renderWorkspace(summary);
       }
+      if (AP && !audioPolish) {
+        audioPolish = AP.createPolish(summary);
+      }
+      persistEpisodeSession();
+      renderWorkspace(summary);
     } else {
       renderSetup();
     }
