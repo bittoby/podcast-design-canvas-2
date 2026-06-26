@@ -8,7 +8,8 @@
 // and episode import polish (#77, #86, #89), visual style preset cards (#94, #102),
 // and creator template gallery (#106), home screen focus (#112),
 // gallery copy polish (#117), first-episode import (#130), import handoff (#142),
-// and preset-first import setup (#147), and setup completion handoff (#149).
+// and preset-first import setup (#147), setup completion handoff (#149),
+// and episode summary handoff polish (#153).
 (function () {
   const ES = window.PdcEpisodeSetup;
   const STY = window.PdcEpisodeStyle;
@@ -541,6 +542,7 @@
   function renderEpisodeImportRecap(summary, setupContext) {
     const completion = ES.buildSetupCompletionHandoff(summary, setupContext || {});
     const handoff = completion.handoff;
+    const opts = setupContext && typeof setupContext === "object" ? setupContext : {};
     const speakerItems = handoff.speakers.map((speaker) => {
       const bucketClass = ES.speakerBucketCueClass(speaker.role);
       const socialItems = speaker.social.length
@@ -558,15 +560,45 @@
       );
     });
 
+    const speakersSection = opts.compactSpeakers
+      ? el(
+        "details",
+        { class: "episode-import-handoff-speakers-details" },
+        el("summary", {}, "Speaker details & social links"),
+        el("ul", { class: "episode-import-handoff-speakers" }, speakerItems),
+        handoff.socialLinkCount > 0
+          ? el(
+            "p",
+            { class: "hint episode-import-recap-social" },
+            `${handoff.socialLinkCount} social link${handoff.socialLinkCount === 1 ? "" : "s"} saved for speaker context`,
+          )
+          : null,
+      )
+      : el(
+        "div",
+        { class: "episode-import-handoff-speakers-block" },
+        el("h4", { class: "episode-import-handoff-speakers-title" }, "Speakers driving this episode"),
+        el("ul", { class: "episode-import-handoff-speakers" }, speakerItems),
+        handoff.socialLinkCount > 0
+          ? el(
+            "p",
+            { class: "hint episode-import-recap-social" },
+            `${handoff.socialLinkCount} social link${handoff.socialLinkCount === 1 ? "" : "s"} saved for speaker context`,
+          )
+          : null,
+      );
+
     return el(
       "section",
-      { class: "card episode-import-recap episode-import-handoff setup-completion-recap" },
+      {
+        class: `card episode-import-recap episode-import-handoff setup-completion-recap${opts.handoffPanel ? " workspace-handoff-recap" : ""}`,
+      },
       el("p", { class: "eyebrow episode-import-handoff-eyebrow" }, completion.completionEyebrow),
-      el("h3", {}, "Episode setup summary"),
+      el("h3", { class: "workspace-handoff-recap-title" }, "What you configured"),
       el("p", { class: "hint episode-import-handoff-lead" }, completion.completionLead),
       el(
         "dl",
-        { class: "episode-import-handoff-grid" },
+        { class: "episode-import-handoff-grid workspace-handoff-recap-grid" },
         el("div", { class: "episode-import-handoff-item" },
           el("dt", {}, "Episode"),
           el("dd", {}, completion.episodeTitle),
@@ -584,15 +616,7 @@
           el("dd", {}, completion.roleSummary || "Assign speakers during setup"),
         ),
       ),
-      el("h4", { class: "episode-import-handoff-speakers-title" }, "Speakers driving this episode"),
-      el("ul", { class: "episode-import-handoff-speakers" }, speakerItems),
-      handoff.socialLinkCount > 0
-        ? el(
-          "p",
-          { class: "hint episode-import-recap-social" },
-          `${handoff.socialLinkCount} social link${handoff.socialLinkCount === 1 ? "" : "s"} saved for speaker context`,
-        )
-        : null,
+      speakersSection,
     );
   }
 
@@ -2606,6 +2630,80 @@
     };
   }
 
+  function renderWorkspacePrimaryAction(currentStage, summary) {
+    const nextActionBtn = el(
+      "button",
+      {
+        type: "button",
+        class: "btn-primary workspace-handoff-primary-btn",
+        id: "workspace-primary-next",
+      },
+      `${currentStage.actionLabel} →`,
+    );
+    nextActionBtn.addEventListener("click", function () {
+      navigateWorkspaceStage(currentStage.actionTarget, summary);
+    });
+    return el(
+      "section",
+      { class: "card workspace-handoff-next" },
+      el("p", { class: "eyebrow workspace-handoff-next-eyebrow" }, "Your next step"),
+      el("h3", { class: "workspace-handoff-next-title" }, currentStage.label),
+      el("p", { class: "hint workspace-handoff-next-summary" }, currentStage.summary),
+      el("div", { class: "workspace-handoff-next-cta" }, nextActionBtn),
+    );
+  }
+
+  function renderWorkspaceProductionChecklist(ws, wsSummary, summary) {
+    const checklist = el(
+      "section",
+      { class: "card workspace-production-checklist" },
+      el(
+        "div",
+        { class: "workspace-checklist-head" },
+        el("p", { class: "eyebrow workspace-checklist-eyebrow" }, "Production checklist"),
+        el("h3", {}, "Episode pipeline"),
+        el("p", { class: "workspace-checklist-progress" }, wsSummary.progressLine),
+        el("p", { class: "hint workspace-checklist-lead" }, wsSummary.workspaceLine),
+      ),
+    );
+    const stageList = el("ol", { class: "workspace-checklist-stages" });
+    ws.stages.forEach(function (item, index) {
+      const statusLabel = item.status === "complete"
+        ? "Complete"
+        : item.status === "active"
+          ? "Up next"
+          : item.status === "attention"
+            ? "Recommended"
+            : "Later";
+      const row = el(
+        "li",
+        {
+          class: `workspace-checklist-item workspace-checklist-${item.status}${item.id === ws.currentStageId ? " workspace-checklist-current" : ""}`,
+        },
+        el("span", { class: "workspace-checklist-index" }, String(index + 1)),
+        el(
+          "div",
+          { class: "workspace-checklist-main" },
+          el("span", { class: "workspace-checklist-status" }, statusLabel),
+          el("span", { class: "workspace-checklist-label" }, item.label),
+          el("p", { class: "workspace-checklist-summary" }, item.summary),
+        ),
+      );
+      const openButton = el(
+        "button",
+        { type: "button", class: "link-button workspace-checklist-open" },
+        `${item.actionLabel} →`,
+      );
+      openButton.addEventListener("click", function () {
+        navigateWorkspaceStage(item.actionTarget, summary);
+      });
+      row.appendChild(el("div", { class: "workspace-checklist-actions" }, openButton));
+      stageList.appendChild(row);
+    });
+    checklist.appendChild(stageList);
+    return checklist;
+  }
+
   function renderWorkspace(summary) {
     workspaceSummaryCache = summary;
     lastView = "workspace";
@@ -2619,14 +2717,16 @@
     view.appendChild(
       el(
         "div",
-        { class: "workspace-head" },
+        { class: "workspace-head workspace-handoff-intro" },
         el("p", { class: "eyebrow" }, "Production workspace"),
         el("h2", {}, summary.episodeName),
-        el("p", { class: "hint" }, "Setup is complete — your preset, recording source, speaker roles, and social context are driving the stages below."),
+        el(
+          "p",
+          { class: "hint workspace-handoff-intro-lead" },
+          "Setup is saved — review what you configured, then take the next production step.",
+        ),
       ),
     );
-
-    view.appendChild(renderEpisodeImportRecap(summary, { presetSummary: importStyleSummaryLine() }));
 
     if (WS) {
       ensureMomentsBoard(summary);
@@ -2635,67 +2735,19 @@
       const currentStage = WS.getStage(ws, ws.currentStageId);
       setWorkspaceStep(ws.currentStageId);
 
+      const handoffLayout = el("div", { class: "workspace-handoff-layout" });
+      handoffLayout.appendChild(renderEpisodeImportRecap(summary, {
+        presetSummary: importStyleSummaryLine(),
+        compactSpeakers: true,
+        handoffPanel: true,
+      }));
       if (currentStage) {
-        const nextActionBtn = el(
-          "button",
-          { type: "button", class: "btn-primary workspace-next-action-btn" },
-          `${currentStage.actionLabel} →`,
-        );
-        nextActionBtn.addEventListener("click", function () {
-          navigateWorkspaceStage(currentStage.actionTarget, summary);
-        });
-        view.appendChild(
-          el(
-            "section",
-            { class: "card workspace-next-action" },
-            el("p", { class: "eyebrow workspace-next-action-eyebrow" }, "Your next step"),
-            el("h3", {}, currentStage.label),
-            el("p", { class: "hint workspace-next-action-summary" }, currentStage.summary),
-            el("div", { class: "workspace-next-action-cta" }, nextActionBtn),
-          ),
-        );
+        handoffLayout.appendChild(renderWorkspacePrimaryAction(currentStage, summary));
       }
-
-      view.appendChild(
-        el(
-          "section",
-          { class: "card workspace-progress workspace-progress-hero" },
-          el("h3", {}, "Episode progress"),
-          el("p", { class: "workspace-progress-line" }, wsSummary.progressLine),
-          el("p", { class: "hint workspace-next-hint" }, wsSummary.workspaceLine),
-        ),
-      );
-
-      const pipeline = el("section", { class: "card workspace-pipeline" }, el("h3", {}, "Production stages"));
-      const stageList = el("div", { class: "workspace-stages" });
-      ws.stages.forEach(function (item) {
-        const statusLabel = item.status === "complete"
-          ? "Complete"
-          : item.status === "active"
-            ? "Ready now"
-            : item.status === "attention"
-              ? "Recommended"
-              : "Not started";
-        const row = el(
-          "div",
-          { class: `workspace-stage workspace-stage-${item.status}${item.id === ws.currentStageId ? " workspace-stage-current" : ""}` },
-          el(
-            "div",
-            { class: "workspace-stage-main" },
-            el("span", { class: "workspace-stage-status" }, statusLabel),
-            el("span", { class: "workspace-stage-label" }, item.label),
-            el("p", { class: "workspace-stage-summary" }, item.summary),
-          ),
-        );
-        const openButton = el("button", { type: "button", class: item.status === "active" ? "primary" : "ghost" }, `${item.actionLabel} →`);
-        openButton.addEventListener("click", function () {
-          navigateWorkspaceStage(item.actionTarget, summary);
-        });
-        row.appendChild(el("div", { class: "workspace-stage-actions" }, openButton));
-        stageList.appendChild(row);
-      });
-      pipeline.appendChild(stageList);
-      view.appendChild(pipeline);
+      view.appendChild(handoffLayout);
+      view.appendChild(renderWorkspaceProductionChecklist(ws, wsSummary, summary));
+    } else {
+      view.appendChild(renderEpisodeImportRecap(summary, { presetSummary: importStyleSummaryLine() }));
     }
 
     const kitSummary = brandKitSummary();

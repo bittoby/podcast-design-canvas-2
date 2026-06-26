@@ -68,10 +68,12 @@ test("showDetailSections promotes resume when a draft episode exists", () => {
 test("UI wires workflow indicator, draft resume, and workspace next action (#89)", () => {
   assert.ok(html.includes("workflow-step-indicator"));
   assert.ok(ui.includes("resumeEpisodeFromShow"));
-  assert.ok(ui.includes("workspace-next-action"));
+  assert.ok(ui.includes("workspace-handoff-primary-btn"));
+  assert.ok(ui.includes("workspace-production-checklist"));
   assert.ok(ui.includes("setWorkspaceStep"));
   assert.ok(ui.includes("persistEpisodeSession"));
-  assert.ok(styles.includes(".workflow-step-track"));
+  assert.ok(styles.includes(".workspace-handoff-layout"));
+  assert.ok(styles.includes(".workspace-production-checklist"));
   assert.ok(styles.includes(".show-episode-card-resumable"));
 });
 

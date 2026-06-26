@@ -2283,111 +2283,6 @@ button.ghost:hover,
   max-width: 58ch;
 }
 
-.workspace-progress-line {
-  font-weight: 700;
-  margin: 0 0 6px;
-}
-
-.workspace-progress-hero {
-  border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
-  background: color-mix(in srgb, var(--brand) 4%, #fff);
-}
-
-.workspace-next-action {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
-  background: color-mix(in srgb, var(--accent) 6%, #fff);
-}
-
-.workspace-next-action-eyebrow {
-  margin-bottom: 4px;
-}
-
-.workspace-next-action h3 {
-  margin: 0 0 8px;
-}
-
-.workspace-next-action-summary {
-  margin: 0 0 14px;
-  max-width: 58ch;
-}
-
-.workspace-next-action-cta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.workspace-next-action-btn {
-  min-width: 220px;
-}
-
-.workspace-next-hint {
-  margin: 0;
-}
-
-.workspace-stages {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.workspace-stage {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.workspace-stage:last-child {
-  border-bottom: none;
-}
-
-.workspace-stage-current {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  margin: 0 -14px;
-  padding-left: 14px;
-  padding-right: 14px;
-  border-radius: 10px;
-}
-
-.workspace-stage-status {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 4px;
-}
-
-.workspace-stage-complete .workspace-stage-status { color: var(--ok); }
-.workspace-stage-active .workspace-stage-status { color: var(--accent); }
-.workspace-stage-attention .workspace-stage-status { color: var(--warn); }
-.workspace-stage-pending .workspace-stage-status { color: var(--ink-soft); }
-
-.workspace-stage-label {
-  display: block;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.workspace-stage-summary {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-.workspace-stage-actions {
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .workspace-stage {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* ---- Publish review (#37) ---- */
 .publish-review-step .workspace-head .hint {
   max-width: 62ch;
@@ -3649,6 +3544,198 @@ button.ghost:hover,
 
   .setup-cta-bar-sticky .setup-continue-btn {
     width: 100%;
+  }
+}
+
+/* ---- Episode summary handoff polish (#153) ---- */
+.workspace-handoff-intro-lead {
+  max-width: 58ch;
+  margin: 0;
+}
+
+.workspace-handoff-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.workspace-handoff-recap {
+  border: 2px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 5%, #fff) 0%, #fff 100%);
+  box-shadow: 0 10px 28px rgba(20, 24, 40, 0.06);
+}
+
+.workspace-handoff-recap-title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.workspace-handoff-recap-grid {
+  margin-top: 12px;
+}
+
+.episode-import-handoff-speakers-details {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line, #d8def0);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.episode-import-handoff-speakers-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.workspace-handoff-next {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 2px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, #fff) 0%, #fff 100%);
+  box-shadow: 0 10px 28px rgba(20, 24, 40, 0.06);
+}
+
+.workspace-handoff-next-eyebrow {
+  margin-bottom: 6px;
+}
+
+.workspace-handoff-next-title {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+}
+
+.workspace-handoff-next-summary {
+  margin: 0 0 18px;
+  max-width: 42ch;
+}
+
+.workspace-handoff-next-cta {
+  margin-top: auto;
+}
+
+.workspace-handoff-primary-btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.workspace-production-checklist {
+  border-color: var(--line, #d8def0);
+}
+
+.workspace-checklist-head {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, #d8def0);
+}
+
+.workspace-checklist-eyebrow {
+  margin-bottom: 4px;
+}
+
+.workspace-checklist-progress {
+  margin: 8px 0 6px;
+  font-weight: 700;
+}
+
+.workspace-checklist-lead {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.workspace-checklist-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.workspace-checklist-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line, #d8def0);
+}
+
+.workspace-checklist-item:last-child {
+  border-bottom: none;
+}
+
+.workspace-checklist-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 10%, #fff);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-checklist-current {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  margin: 0 -14px;
+  padding-left: 14px;
+  padding-right: 14px;
+  border-radius: 10px;
+}
+
+.workspace-checklist-status {
+  display: inline-block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.workspace-checklist-label {
+  display: block;
+  font-weight: 700;
+}
+
+.workspace-checklist-summary {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.workspace-checklist-complete .workspace-checklist-status {
+  color: #15803d;
+}
+
+.workspace-checklist-open {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .workspace-handoff-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-handoff-next {
+    order: -1;
+  }
+
+  .workspace-checklist-item {
+    grid-template-columns: auto 1fr;
+  }
+
+  .workspace-checklist-actions {
+    grid-column: 1 / -1;
+    padding-left: 40px;
   }
 }
 
