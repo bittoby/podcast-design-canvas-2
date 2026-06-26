@@ -307,6 +307,12 @@
     return data;
   }
 
+  function prepareSandboxPresetHandoff(draft, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const showName = trim(opts.showName) || defaultImportShowName();
+    return applyImportContinueDefaults(applySandboxHandoffSource(draft), { showName });
+  }
+
   // When a valid import source is present but optional identity fields are blank, fill
   // creator-friendly defaults so Continue can land in the workspace handoff without
   // blocking on every text field (same spirit as placeholder files for upload review).
@@ -410,6 +416,7 @@
     defaultImportShowName,
     sandboxDemoRiversideLink,
     applySandboxHandoffSource,
+    prepareSandboxPresetHandoff,
     canApplyImportContinueDefaults,
     applyImportContinueDefaults,
     buildImportHandoff,

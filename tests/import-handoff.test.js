@@ -95,12 +95,14 @@ test("buildSetupCompletionHandoff marks setup complete for workspace recap", () 
 });
 
 test("import handoff UI lands in workspace immediately after setup continue", () => {
+  const handoffBlock = ui.slice(ui.indexOf("function tryCompleteSetupHandoff"), ui.indexOf("function onContinue()"));
   const continueBlock = ui.slice(ui.indexOf("function onContinue()"), ui.indexOf("function focusFirstError()"));
-  assert.ok(continueBlock.includes("renderWorkspace(summary)"));
-  assert.ok(!/if \(SC && !contextApproved\)[\s\S]*renderContextReview\(summary\)/.test(continueBlock));
-  assert.ok(continueBlock.includes("applySandboxHandoffSourceIfNeeded"));
-  assert.ok(continueBlock.includes("ensureSetupStyleApplied"));
-  assert.ok(ui.includes("episode-import-handoff"));
+  assert.ok(handoffBlock.includes("renderWorkspace(summary)"));
+  assert.ok(handoffBlock.includes("applySandboxHandoffSourceIfNeeded"));
+  assert.ok(handoffBlock.includes("ensureSetupStyleApplied"));
+  assert.ok(continueBlock.includes("tryCompleteSetupHandoff"));
+  assert.ok(!/if \(SC && !contextApproved\)[\s\S]*renderContextReview\(summary\)/.test(handoffBlock));
+  assert.ok(ui.includes("tryCompleteSetupHandoff()"));
   assert.ok(ui.includes("buildSetupCompletionHandoff"));
   assert.ok(ui.includes("applyReadyImportDefaults"));
   assert.ok(ui.includes("setup-import-ready-banner"));

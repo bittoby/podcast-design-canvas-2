@@ -27,8 +27,7 @@ function completeDraft() {
 }
 
 function prepareProbePresetHandoff(draft, showName) {
-  const withSource = setup.applySandboxHandoffSource(draft);
-  return setup.applyImportContinueDefaults(withSource, { showName: showName || "Probe Show" });
+  return setup.prepareSandboxPresetHandoff(draft, { showName: showName || "Probe Show" });
 }
 
 test("buildSetupCompletionHandoff carries episode title, preset, source, and roles", () => {
@@ -73,6 +72,18 @@ test("ACCEPTANCE: preset-first probe path validates and produces workspace hando
   const setupStage = workspace.getStage(ws, "setup");
   assert.ok(setupStage.summary.includes("Host"));
   assert.ok(setupStage.summary.includes("riverside.fm"));
+});
+
+test("ACCEPTANCE: preset selection completes sandbox handoff without manual Continue input", () => {
+  const ready = setup.prepareSandboxPresetHandoff(setup.createDraft(), "Sandbox Show");
+  assert.strictEqual(setup.validateDraft(ready).ok, true);
+  const selection = style.applyPresetToSelection(style.createSelection(), "split-stage", false);
+  const presetSummary = style.summarizeStyle(selection, ready.speakers.length).presetName;
+  const completion = setup.buildSetupCompletionHandoff(setup.summarize(ready), { presetSummary });
+  assert.strictEqual(completion.completionEyebrow, "Setup complete");
+  assert.ok(completion.presetSummary.length > 0);
+  assert.ok(completion.roleSummary.includes("Host"));
+  assert.ok(completion.handoff.sourceDetail.includes("riverside.fm"));
 });
 
 test("ACCEPTANCE: riverside-only path still completes setup handoff recap", () => {

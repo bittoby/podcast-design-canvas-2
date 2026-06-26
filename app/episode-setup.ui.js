@@ -1702,15 +1702,20 @@
     });
   }
 
-  function applyReadyImportDefaults() {
-    if (!ES.canApplyImportContinueDefaults(state)) {
+  function applyPendingShowNameDefault() {
+    if (!pendingShowCreation) {
       return;
     }
-    if (pendingShowCreation) {
-      const showNameInput = document.getElementById("f-show-name");
-      if (showNameInput && !trim(showNameInput.value)) {
-        showNameInput.value = ES.defaultImportShowName();
-      }
+    const showNameInput = document.getElementById("f-show-name");
+    if (showNameInput && !trim(showNameInput.value)) {
+      showNameInput.value = ES.defaultImportShowName();
+    }
+  }
+
+  function applyReadyImportDefaults() {
+    applyPendingShowNameDefault();
+    if (!ES.canApplyImportContinueDefaults(state)) {
+      return;
     }
     const showName = trim(document.getElementById("f-show-name") && document.getElementById("f-show-name").value)
       || (activeShowId && LIB ? (LIB.getShow(showLibrary, activeShowId) || {}).name : "")
@@ -1845,7 +1850,7 @@
       setupSectionHeader(
         stepNum,
         "Episode look",
-        "Choose a publish-ready preset — each card shows realistic speaker framing, captions, and overlay treatment.",
+        "Choose a publish-ready preset — when your recording source is ready, selecting a preset opens the production workspace with your episode look saved.",
       ),
     );
     const grid = el("div", { class: "setup-preset-grid preset-grid" });
@@ -1871,6 +1876,9 @@
         applySandboxHandoffSourceIfNeeded();
         activeTemplateId = null;
         canvasDoc = null;
+        if (tryCompleteSetupHandoff({ quiet: true })) {
+          return;
+        }
         renderSetup();
       });
       grid.appendChild(card);
@@ -2310,36 +2318,49 @@
     return card;
   }
 
-  function onContinue() {
+  function tryCompleteSetupHandoff(options) {
+    const opts = options && typeof options === "object" ? options : {};
     readSetupFormState();
     applySandboxHandoffSourceIfNeeded();
     applyReadyImportDefaults();
     ensureSetupStyleApplied();
+    applyPendingShowNameDefault();
     if (pendingShowCreation && !finalizePendingShowCreation()) {
-      renderSetup();
-      return;
+      if (opts.quiet) {
+        showErrors = false;
+        errors = {};
+      }
+      return false;
     }
     readSetupFormState();
     applySandboxHandoffSourceIfNeeded();
     applyReadyImportDefaults();
     ensureSetupStyleApplied();
     const result = ES.validateDraft(state);
-    errors = result.errors;
-    showErrors = true;
-    if (result.ok) {
-      const summary = ES.summarize(state);
-      if (SC && !contextApproved) {
-        contextReview = SC.createReview(summary);
+    if (!result.ok) {
+      if (!opts.quiet) {
+        errors = result.errors;
+        showErrors = true;
       }
-      if (AP && !audioPolish) {
-        audioPolish = AP.createPolish(summary);
-      }
-      if (STY && styleSelection) {
-        appliedStyle = STY.summarizeStyle(styleSelection, summary.speakerCount);
-      }
-      persistEpisodeSession();
-      renderWorkspace(summary);
-    } else {
+      return false;
+    }
+    const summary = ES.summarize(state);
+    if (SC && !contextApproved) {
+      contextReview = SC.createReview(summary);
+    }
+    if (AP && !audioPolish) {
+      audioPolish = AP.createPolish(summary);
+    }
+    if (STY && styleSelection) {
+      appliedStyle = STY.summarizeStyle(styleSelection, summary.speakerCount);
+    }
+    persistEpisodeSession();
+    renderWorkspace(summary);
+    return true;
+  }
+
+  function onContinue() {
+    if (!tryCompleteSetupHandoff()) {
       renderSetup();
     }
   }
