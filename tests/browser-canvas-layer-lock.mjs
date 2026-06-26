@@ -45,8 +45,14 @@ async function completeSetup(page) {
   await page.locator(".guided-workspace").waitFor({ state: "visible" });
 }
 
-async function openCanvasFromWorkspace(page) {
-  await page.locator(".workspace-checklist-open").filter({ hasText: "Open canvas editor" }).click();
+async function openCanvasFromPrimaryNext(page) {
+  const primary = page.locator("#workspace-primary-next");
+  await primary.waitFor({ state: "visible" });
+  const label = (await primary.textContent()) || "";
+  if (!/open canvas editor/i.test(label)) {
+    throw new Error(`Expected primary next to open canvas editor, got: ${label.trim()}`);
+  }
+  await primary.click();
   await page.locator(".canvas-step").waitFor({ state: "visible" });
 }
 
@@ -59,7 +65,11 @@ async function readBounds(locator) {
   }));
 }
 
-async function dragElement(page, locator, dx, dy) {
+async function layerStackLabels(page) {
+  return page.locator(".canvas-layer .canvas-layer-name").allTextContents();
+}
+
+async function pointerDrag(page, locator, dx, dy) {
   const box = await locator.boundingBox();
   if (!box) {
     throw new Error("Missing bounding box for drag target");
@@ -92,6 +102,40 @@ async function dragElement(page, locator, dx, dy) {
   await page.waitForTimeout(100);
 }
 
+async function pointerResize(page, stageLocator, dx, dy) {
+  const handle = stageLocator.locator(".canvas-obj-resize-handle");
+  const box = await handle.boundingBox();
+  if (!box) {
+    throw new Error("Missing resize handle bounding box");
+  }
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  const endX = startX + dx;
+  const endY = startY + dy;
+  await handle.dispatchEvent("pointerdown", {
+    clientX: startX,
+    clientY: startY,
+    pointerId: 1,
+    bubbles: true,
+    cancelable: true,
+  });
+  await handle.dispatchEvent("pointermove", {
+    clientX: endX,
+    clientY: endY,
+    pointerId: 1,
+    bubbles: true,
+    cancelable: true,
+  });
+  await handle.dispatchEvent("pointerup", {
+    clientX: endX,
+    clientY: endY,
+    pointerId: 1,
+    bubbles: true,
+    cancelable: true,
+  });
+  await page.waitForTimeout(100);
+}
+
 async function main() {
   const server = await startServer();
   let browser;
@@ -112,40 +156,82 @@ async function main() {
     await completeSetup(page);
     log(await page.locator(".guided-workspace").isVisible(), "Setup lands in production workspace");
 
-    await openCanvasFromWorkspace(page);
-    log(await page.locator(".canvas-step").isVisible(), "Production checklist opens the canvas editor");
+    await openCanvasFromPrimaryNext(page);
+    log(await page.locator(".canvas-step").isVisible(), "ACCEPTANCE: workspace primary next opens the canvas editor");
     log(await page.getByRole("heading", { name: /Customize/i }).isVisible(), "Canvas editor headline is visible");
+    await page.screenshot({ path: join(root, "tests", "canvas-layer-lock-editor.png"), fullPage: false });
+    log(true, "Screenshot saved to tests/canvas-layer-lock-editor.png");
 
     const titleRow = page.locator(".canvas-layer").filter({ hasText: "Title moment" });
     const titleStage = page.locator(".canvas-obj-title");
+    const lowerThirdRow = page.locator(".canvas-layer").filter({ hasText: "Lower-third" });
+    const brandRow = page.locator(".canvas-layer").filter({ hasText: "Logo / show branding" });
+
     await titleRow.getByRole("button", { name: "Lock" }).click();
     await titleRow.locator(".canvas-layer-meta", { hasText: "position locked" }).waitFor();
-    log(await titleRow.evaluate((el) => el.classList.contains("is-locked")), "Locked layer row shows is-locked");
+    log(await titleRow.evaluate((el) => el.classList.contains("is-locked")), "Locked title row shows is-locked");
     log(await titleStage.evaluate((el) => el.classList.contains("is-locked")), "Locked title stage object shows is-locked");
+    await page.screenshot({ path: join(root, "tests", "canvas-layer-lock-locked.png"), fullPage: false });
+    log(true, "Screenshot saved to tests/canvas-layer-lock-locked.png");
 
     const moveUp = titleRow.locator("button", { hasText: "▲" });
     const moveDown = titleRow.locator("button", { hasText: "▼" });
-    log(await moveUp.isDisabled(), "Locked layer move-up control is disabled");
-    log(await moveDown.isDisabled(), "Locked layer move-down control is disabled");
+    log(await moveUp.isDisabled(), "Locked layer reorder up is disabled");
+    log(await moveDown.isDisabled(), "Locked layer reorder down is disabled");
+    log(await lowerThirdRow.locator("button", { hasText: "▼" }).isDisabled(), "Neighbor cannot reorder into locked title");
+
+    const stackBeforeAdd = await layerStackLabels(page);
+    const titleIndexBefore = stackBeforeAdd.indexOf("Title moment");
+    await page.getByRole("button", { name: "Add layer" }).click();
+    await page.waitForTimeout(100);
+    const stackAfterAdd = await layerStackLabels(page);
+    log(stackAfterAdd[titleIndexBefore] === "Title moment", "Add layer does not displace locked title stack slot");
+    log(stackAfterAdd.length === stackBeforeAdd.length + 1, "Add layer appends without shifting locked indices");
+
+    log(await lowerThirdRow.getByRole("button", { name: "Remove" }).isDisabled(), "Remove above locked title is blocked (displacement)");
+
+    log(await titleStage.locator(".canvas-obj-resize-handle").count() === 0, "Locked layer hides resize handle on stage");
+    log(await brandRow.locator("button", { hasText: "▲" }).isDisabled(), "Default locked brand cannot reorder up");
 
     const lockedBounds = await readBounds(titleStage);
-    await dragElement(page, titleStage, 90, 60);
+    await pointerDrag(page, titleStage, 90, 60);
     const afterLockedDrag = await readBounds(titleStage);
     log(
-      lockedBounds.left === afterLockedDrag.left && lockedBounds.top === afterLockedDrag.top,
-      "Locked layer drag does not change on-stage position",
+      lockedBounds.left === afterLockedDrag.left
+        && lockedBounds.top === afterLockedDrag.top
+        && lockedBounds.width === afterLockedDrag.width
+        && lockedBounds.height === afterLockedDrag.height,
+      "Locked layer drag does not change bounds",
     );
 
     await titleRow.getByRole("button", { name: "Unlock" }).click();
     await titleRow.getByRole("button", { name: "Lock" }).waitFor();
     log(!(await titleRow.evaluate((el) => el.classList.contains("is-locked"))), "Unlock restores editable layer row");
+    log(await titleStage.locator(".canvas-obj-resize-handle").count() === 1, "Unlocked layer shows resize handle");
 
     const unlockedBefore = await readBounds(titleStage);
-    await dragElement(page, titleStage, 70, 40);
-    const unlockedAfter = await readBounds(titleStage);
+    await pointerDrag(page, titleStage, 50, 30);
+    const afterUnlockedDrag = await readBounds(titleStage);
     log(
-      unlockedBefore.left !== unlockedAfter.left || unlockedBefore.top !== unlockedAfter.top,
-      "Unlocked layer drag changes on-stage position",
+      unlockedBefore.left !== afterUnlockedDrag.left || unlockedBefore.top !== afterUnlockedDrag.top,
+      "Unlocked layer drag changes bounds",
+    );
+
+    const beforeResize = await readBounds(titleStage);
+    await pointerResize(page, titleStage, 40, 25);
+    const afterResize = await readBounds(titleStage);
+    log(
+      beforeResize.width !== afterResize.width || beforeResize.height !== afterResize.height,
+      "Unlocked layer resize changes bounds",
+    );
+
+    const stackBeforeMove = await layerStackLabels(page);
+    await titleRow.locator("button", { hasText: "▲" }).click();
+    await page.waitForTimeout(100);
+    const stackAfterMove = await layerStackLabels(page);
+    log(
+      stackBeforeMove.indexOf("Title moment") !== stackAfterMove.indexOf("Title moment"),
+      "Unlocked layer reorder changes stack order",
     );
 
     await page.screenshot({ path: join(root, "tests", "canvas-layer-lock-unlocked.png"), fullPage: false });

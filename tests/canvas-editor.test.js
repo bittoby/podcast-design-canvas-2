@@ -222,6 +222,11 @@ test("ACCEPTANCE: locked canvas layers stay fixed until unlocked", () => {
   doc = editor.dragLayer(doc, titleLayer.id, 4, 3);
   const unlockedBounds = layers.layerBounds(doc.layers.find((layer) => layer.id === titleLayer.id));
   assert.notDeepStrictEqual(unlockedBounds, lockedBounds);
+
+  doc = editor.updateLayers(doc, layers.toggleLock(doc.layers, lockedIndex));
+  doc = editor.resizeLayer(doc, titleLayer.id, 5, 4);
+  const resizedBounds = layers.layerBounds(doc.layers.find((layer) => layer.id === titleLayer.id));
+  assert.notDeepStrictEqual(resizedBounds, lockedBounds);
 });
 
 console.log(`\ncanvas editor: ${passed} assertions passed`);
