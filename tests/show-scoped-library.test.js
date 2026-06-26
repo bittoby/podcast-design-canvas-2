@@ -230,4 +230,17 @@ test("buildEpisodeStart ignores templates from another show", () => {
   assert.strictEqual(start.templateName, "");
 });
 
+test("UI exposes above-fold show library panel and quick Add show path", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const ui = fs.readFileSync(path.join(__dirname, "../app/episode-setup.ui.js"), "utf8");
+  const styles = fs.readFileSync(path.join(__dirname, "../app/styles.css"), "utf8");
+  assert.ok(ui.includes("show-library-shows-panel"));
+  assert.ok(ui.includes("show-library-quick-add"));
+  assert.ok(ui.includes("Add show →"));
+  assert.ok(ui.includes("quick-show-name"));
+  assert.ok(ui.includes("renderShowDetail(show.id)"));
+  assert.ok(styles.includes(".show-library-shows-panel"));
+});
+
 console.log(`\nshow scoped library: ${passed} test(s) passed.`);

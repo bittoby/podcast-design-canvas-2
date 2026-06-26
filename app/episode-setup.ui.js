@@ -796,7 +796,7 @@
     return section;
   }
 
-  function renderShowLibrary() {
+  function renderShowLibrary(quickAddError) {
     if (!LIB) {
       setPageIntro("episode-setup");
       renderSetup();
@@ -815,6 +815,18 @@
       el("h1", {}, "Show Library"),
       el("p", { class: "hint" }, summary.libraryLine),
     );
+
+    if (shows.length) {
+      header.appendChild(
+        el(
+          "p",
+          { class: "hint show-library-scope-note" },
+          shows.length === 1
+            ? "This show keeps its own episodes and saved layouts — open it to see scoped content."
+            : `${shows.length} shows saved — each keeps its own episodes and saved layouts. Open a show to see scoped episodes, templates, and next actions.`,
+        ),
+      );
+    }
 
     const startHero = el(
       "section",
@@ -857,24 +869,12 @@
 
     const listEl = el("div", { class: "show-library-list" });
 
-    if (shows.length) {
-      header.appendChild(
-        el(
-          "p",
-          { class: "hint show-library-scope-note" },
-          shows.length === 1
-            ? "This show keeps its own episodes and saved layouts — open it to see scoped content."
-            : `${shows.length} shows saved — each keeps its own episodes and saved layouts. Open a show to see scoped episodes, templates, and next actions.`,
-        ),
-      );
-    }
-
     if (!shows.length) {
       listEl.appendChild(
         el(
           "div",
           { class: "show-library-empty" },
-          el("p", {}, "No shows yet. Create a show — you will import your first recording and assign speakers right away."),
+          el("p", {}, "No shows yet — name one below, then open it to import episodes and save layouts for that podcast."),
         ),
       );
     } else {
@@ -927,15 +927,67 @@
       });
     }
 
-    const view = el(
-      "div",
-      { class: "workspace-root home-screen" },
-      header,
-      startHero,
-      galleryCard,
-      exploreSection,
+    const quickAddRow = el("div", { class: "show-library-quick-add" });
+    const quickNameInput = el("input", {
+      id: "quick-show-name",
+      type: "text",
+      placeholder: "e.g. Founders Unfiltered",
+      "aria-label": "New show name",
+    });
+    const quickAddBtn = el("button", { type: "button", class: "btn-primary btn-sm show-library-quick-add-btn" }, "Add show →");
+    quickAddBtn.addEventListener("click", () => {
+      const trimmed = typeof quickNameInput.value === "string" ? quickNameInput.value.trim() : "";
+      const candidate = trimmed || (ES ? ES.defaultImportShowName() : "My podcast show");
+      const check = LIB.validateShowName(showLibrary, candidate);
+      if (!check.ok) {
+        renderShowLibrary(check.error);
+        return;
+      }
+      const show = LIB.createShow(check.name, {});
+      showLibrary = LIB.addShow(showLibrary, show);
+      persistShowLibrary();
+      activeShowId = show.id;
+      renderShowDetail(show.id);
+    });
+    quickAddRow.appendChild(quickNameInput);
+    quickAddRow.appendChild(quickAddBtn);
+
+    const showsPanel = el(
+      "section",
+      { class: "card show-library-shows-panel show-scoped-section" },
+      el("h2", { class: "show-library-shows-title" }, shows.length ? "Your shows" : "Your podcast shows"),
+      el(
+        "p",
+        { class: "hint show-scoped-section-lead" },
+        shows.length
+          ? "Open a show to manage its episodes, saved layouts, brand kit, and next actions — content from other shows stays separate."
+          : "Add a show name and click Add show — you will land on that show's scoped library view immediately.",
+      ),
       listEl,
+      quickAddRow,
     );
+    if (quickAddError) {
+      showsPanel.appendChild(el("p", { class: "hint show-library-quick-add-error", role: "alert" }, quickAddError));
+    }
+
+    const presetCreateLink = el("button", { type: "button", class: "link-button" }, "Create show with preset picker →");
+    presetCreateLink.addEventListener("click", () => renderNewShowForm("", "", null));
+
+    const viewParts = [header, showsPanel];
+    if (shows.length) {
+      viewParts.push(
+        el(
+          "section",
+          { class: "card show-library-secondary" },
+          el("p", { class: "hint" }, "Need preset previews before your first import?"),
+          presetCreateLink,
+        ),
+      );
+    } else {
+      viewParts.push(startHero, galleryCard, exploreSection);
+    }
+
+    const view = el("div", { class: "workspace-root home-screen" }, viewParts);
     root.appendChild(view);
   }
 
@@ -1112,7 +1164,8 @@
 
     const saveBtn = el("button", { class: "btn-primary create-show-continue-btn", type: "button" }, "Create show & import episode →");
     saveBtn.addEventListener("click", () => {
-      const name = nameInput.value;
+      const rawName = typeof nameInput.value === "string" ? nameInput.value.trim() : "";
+      const name = rawName || (ES ? ES.defaultImportShowName() : "My podcast show");
       const check = LIB.validateShowName(showLibrary, name);
       if (!check.ok) {
         renderNewShowForm(name, check.error, selectedTemplateId);

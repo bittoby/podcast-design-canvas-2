@@ -4118,3 +4118,36 @@ button.ghost:hover,
 .setup-library-link {
   white-space: nowrap;
 }
+
+.show-library-shows-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.show-library-shows-title {
+  margin: 0;
+  font-size: clamp(20px, 2.5vw, 24px);
+}
+
+.show-library-quick-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.show-library-quick-add input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.show-library-quick-add-error {
+  margin: 0;
+  color: #b42318;
+}
+
+.show-library-secondary {
+  display: grid;
+  gap: 8px;
+}
