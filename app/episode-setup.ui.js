@@ -4147,13 +4147,13 @@
 
   function applyCanvasLayerBounds(node, layer) {
     const bounds = CL.layerBounds(layer);
+    node.style.removeProperty("inset");
     node.style.left = `${bounds.x}%`;
     node.style.top = `${bounds.y}%`;
     node.style.width = `${bounds.w}%`;
     node.style.height = `${bounds.h}%`;
     node.style.right = "auto";
     node.style.bottom = "auto";
-    node.style.inset = "auto";
   }
 
   function bindCanvasLayerTransform(node, layer, summary, mode) {

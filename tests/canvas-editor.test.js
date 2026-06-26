@@ -149,6 +149,17 @@ test("refreshSpeakerFrames rebuilds speaker frames for a new episode", () => {
   assert.strictEqual(doc.titleText, "Founders Unfiltered #7");
 });
 
+test("canvas editor UI wires locked-layer drag, resize, and remove guards", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const ui = fs.readFileSync(path.join(__dirname, "../app/episode-setup.ui.js"), "utf8");
+  assert.ok(ui.includes("bindCanvasLayerTransform"));
+  assert.ok(ui.includes("CE.dragLayer"));
+  assert.ok(ui.includes("CE.resizeLayer"));
+  assert.ok(ui.includes("CL.canRemoveLayer"));
+  assert.ok(ui.includes("openCanvasEditor"));
+});
+
 test("locked layers resist stack reorder, removal displacement, and bounds edits", () => {
   const stack = [
     layers.createLayer("captions", "l-captions"),
