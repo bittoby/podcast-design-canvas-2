@@ -47,11 +47,12 @@ test("ACCEPTANCE: library → create show → import path keeps polished setup s
 test("import scan polish separates sections and groups speaker fields (#86)", () => {
   assert.ok(ui.includes("setup-import-flow"));
   assert.ok(ui.includes("setupSectionHeader"));
-  assert.ok(ui.includes("speaker-identity-group"));
-  assert.ok(ui.includes("speaker-recording-group"));
+  assert.ok(ui.includes("setup-section-preset"));
+  assert.ok(ui.includes("speaker-optional-details"));
   assert.ok(ui.includes("speaker-social-group"));
   assert.ok(ui.includes("setup-role-overview"));
   assert.ok(ui.includes("setup-draft-review"));
+  assert.ok(!ui.includes('form.appendChild(renderSavedTemplatesCard(saved, null))'));
   assert.ok(styles.includes(".setup-section-head"));
   assert.ok(styles.includes(".speaker-group"));
   assert.ok(styles.includes(".setup-role-chip"));

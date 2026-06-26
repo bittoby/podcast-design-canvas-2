@@ -7,7 +7,8 @@
 // transcript correction (#63), episode import before brand setup (#73),
 // and episode import polish (#77, #86, #89), visual style preset cards (#94, #102),
 // and creator template gallery (#106), home screen focus (#112),
-// gallery copy polish (#117), and first-episode import (#130).
+// gallery copy polish (#117), first-episode import (#130), import handoff (#142),
+// and preset-first import setup (#147).
 (function () {
   const ES = window.PdcEpisodeSetup;
   const STY = window.PdcEpisodeStyle;
@@ -425,16 +426,18 @@
 
   function renderImportFlowOutline(firstImport, includeShowName) {
     const nav = el("nav", { class: "setup-import-flow", "aria-label": "Import setup sections" });
-    if (includeShowName) {
-      nav.appendChild(el("span", { class: "setup-flow-step is-current" }, "1 · Show name"));
-      nav.appendChild(el("span", { class: "setup-flow-step" }, "2 · Episode details"));
-      nav.appendChild(el("span", { class: "setup-flow-step" }, "3 · Recording source"));
-      nav.appendChild(el("span", { class: "setup-flow-step" }, "4 · Speaker sources"));
-      return nav;
-    }
-    nav.appendChild(el("span", { class: "setup-flow-step is-current" }, "1 · Episode details"));
-    nav.appendChild(el("span", { class: "setup-flow-step" }, "2 · Recording source"));
-    nav.appendChild(el("span", { class: "setup-flow-step" }, "3 · Speaker sources"));
+    const steps = includeShowName
+      ? ["Show name", "Episode details", "Recording source", "Episode look", "Speakers"]
+      : ["Episode details", "Recording source", "Episode look", "Speakers"];
+    steps.forEach((label, index) => {
+      nav.appendChild(
+        el(
+          "span",
+          { class: `setup-flow-step${index === 0 ? " is-current" : ""}` },
+          `${index + 1} · ${label}`,
+        ),
+      );
+    });
     return nav;
   }
 
@@ -1765,6 +1768,55 @@
     return typeof value === "string" ? value.trim() : "";
   }
 
+  function renderSetupPresetSection(stepNum) {
+    if (!STY || !SP) {
+      return null;
+    }
+    if (!styleSelection) {
+      styleSelection = STY.createSelection();
+    }
+    const previewName = trim(state.episodeName)
+      || (activeShowId && LIB ? (LIB.getShow(showLibrary, activeShowId) || {}).name : "")
+      || "Your show";
+    const section = el(
+      "section",
+      { class: "card setup-section setup-section-preset" },
+      setupSectionHeader(
+        stepNum,
+        "Episode look",
+        "Choose a publish-ready preset — each card shows realistic speaker framing, captions, and overlay treatment.",
+      ),
+    );
+    const grid = el("div", { class: "setup-preset-grid preset-grid" });
+    STY.STYLE_PRESETS.forEach((preset) => {
+      const selected = styleSelection.presetId === preset.id;
+      const look = SP.buildEpisodeLook(preset.id, { showName: previewName });
+      const cues = STY.presetCardSummary(preset);
+      const card = el(
+        "button",
+        {
+          type: "button",
+          class: `preset-card setup-preset-card style-preset-card${selected ? " selected" : ""}`,
+          "aria-pressed": selected ? "true" : "false",
+        },
+        renderEpisodeLookPreview(look, "card"),
+        el("span", { class: "preset-name" }, preset.name),
+        el("span", { class: "preset-tagline" }, preset.tagline),
+        el("span", { class: "preset-format-cue" }, cues.formatCue),
+      );
+      card.addEventListener("click", () => {
+        styleSelection = STY.applyPresetToSelection(styleSelection, preset.id, layoutCustomized);
+        appliedStyle = STY.summarizeStyle(styleSelection, state.speakers.length);
+        activeTemplateId = null;
+        canvasDoc = null;
+        renderSetup();
+      });
+      grid.appendChild(card);
+    });
+    section.appendChild(grid);
+    return section;
+  }
+
   function renderSetup() {
     lastView = "setup";
     sanitizeSetupState();
@@ -1781,8 +1833,8 @@
       ? `Import your first episode${show ? ` for ${show.name}` : ""}`
       : "Set up your recording and speakers";
     const importLead = firstImport
-      ? `Paste a Riverside link or attach synced speaker files and assign Host and guest buckets. ${ES.importSocialContextCueLine()}`
-      : `Import your synced sources and assign each speaker. ${ES.importSocialContextCueLine()} Then continue to audio polish and style.`;
+      ? "Paste a Riverside link or attach synced speaker files, pick an episode look, then name your speakers."
+      : "Import your synced sources, choose a preset look, and assign each speaker bucket.";
 
     const form = el("form", {
       class: `setup setup-import${firstImport ? " setup-first-episode-import" : ""}`,
@@ -1935,6 +1987,12 @@
     form.appendChild(sourceCard);
     sectionNumber += 1;
 
+    const presetSection = renderSetupPresetSection(sectionNumber);
+    if (presetSection) {
+      form.appendChild(presetSection);
+      sectionNumber += 1;
+    }
+
     // Speakers & sources
     const speakerStack = el("div", { class: "speaker-stack" });
     state.speakers.forEach((speaker, index) => {
@@ -1947,10 +2005,9 @@
       setupSectionHeader(
         sectionNumber,
         "Speakers & sources",
-        "One card per speaker — assign Host, Guest 1, or Guest 2, attach each synced source, and optionally add links for better spellings and captions.",
+        "One card per speaker — assign Host or Guest buckets and attach synced files when needed.",
       ),
       renderSpeakerRoleOverview(),
-      el("p", { class: "hint setup-social-context-cue" }, ES.importSocialContextCueLine()),
       speakerStack,
     );
 
@@ -1967,13 +2024,6 @@
 
     if (ES.canApplyImportContinueDefaults(state)) {
       syncImportReadyBanner();
-    }
-
-    if (TM) {
-      const saved = TM.listTemplates(templateStore);
-      if (saved.length || GAL) {
-        form.appendChild(renderSavedTemplatesCard(saved, null));
-      }
     }
 
     if (activeShowId) {
@@ -2088,18 +2138,10 @@
       syncSpeakerBucketCues(speaker.role, card, roleBadge, chip);
     });
     core.appendChild(field("Role", roleSelect, `speaker:${index}:role`));
+    body.appendChild(core);
 
-    const identityGroup = el(
-      "div",
-      { class: "speaker-group speaker-identity-group" },
-      el("h4", { class: "speaker-group-title" }, "Who is speaking"),
-      core,
-    );
-    body.appendChild(identityGroup);
-
-    // Source: file (upload) or optional channel label (riverside)
-    const sourceBlock = el("div", { class: "speaker-source-block" });
     if (state.sourceMode === "upload") {
+      const sourceBlock = el("div", { class: "speaker-source-block speaker-source-required" });
       const fileInput = el("input", {
         id: `f-sp-${index}-source`,
         type: "file",
@@ -2140,7 +2182,29 @@
         ),
       );
       sourceBlock.appendChild(placeholderBtn);
-    } else {
+      body.appendChild(sourceBlock);
+    }
+
+    const optionalKeys = ES.SOCIAL_NETWORKS.map((net) => `speaker:${index}:social:${net.key}`);
+    const optionalOpen = showErrors && optionalKeys.some((key) => errors[key]);
+    const optionalDetails = el(
+      "details",
+      {
+        class: "speaker-optional-details",
+        open: optionalOpen ? true : null,
+      },
+    );
+    optionalDetails.appendChild(
+      el("summary", {}, "Optional details (channel label & social links)"),
+    );
+    const optionalHint = el(
+      "p",
+      { class: "hint speaker-optional-lead" },
+      ES.importSocialContextCueLine(),
+    );
+    optionalDetails.appendChild(optionalHint);
+
+    if (state.sourceMode === "riverside") {
       const trackInput = el("input", {
         id: `f-sp-${index}-source`,
         type: "text",
@@ -2152,20 +2216,13 @@
       trackInput.addEventListener("input", (e) => {
         speaker.trackLabel = e.target.value;
       });
-      sourceBlock.appendChild(field("Channel label", trackInput, null, "Optional — name this speaker's channel in the recording."));
+      optionalDetails.appendChild(
+        field("Channel label", trackInput, null, "Optional — name this speaker's channel in the recording."),
+      );
     }
 
-    const recordingGroup = el(
-      "div",
-      { class: "speaker-group speaker-recording-group" },
-      el("h4", { class: "speaker-group-title" }, "Synced recording"),
-      sourceBlock,
-    );
-    body.appendChild(recordingGroup);
-
-    // Optional social links
-    const social = el("details", { class: "social speaker-group speaker-social-group" });
-    social.appendChild(el("summary", {}, "Social links for smarter edits (optional)"));
+    const social = el("div", { class: "social speaker-social-group" });
+    social.appendChild(el("p", { class: "speaker-social-label" }, "Social links for smarter edits"));
     const socialHint = el(
       "p",
       { class: "hint speaker-social-benefit" },
@@ -2185,7 +2242,9 @@
       });
       social.appendChild(field(net.label, input, `speaker:${index}:social:${net.key}`));
     });
-    body.appendChild(social);
+    optionalDetails.appendChild(social);
+    body.appendChild(optionalDetails);
+
     card.appendChild(body);
 
     return card;
@@ -2210,6 +2269,9 @@
       }
       if (AP && !audioPolish) {
         audioPolish = AP.createPolish(summary);
+      }
+      if (STY && styleSelection) {
+        appliedStyle = STY.summarizeStyle(styleSelection, summary.speakerCount);
       }
       persistEpisodeSession();
       renderWorkspace(summary);

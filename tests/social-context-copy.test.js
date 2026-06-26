@@ -49,10 +49,10 @@ test("importSocialContextCueLine explains transcript and visual accuracy", () =>
 test("import UI wires shared social context copy helpers", () => {
   assert.ok(ui.includes("ES.socialLinksBenefitLine()"));
   assert.ok(ui.includes("ES.importSocialContextCueLine()"));
-  assert.ok(ui.includes("setup-social-context-cue"));
+  assert.ok(ui.includes("speaker-optional-lead"));
   assert.ok(ui.includes("speaker-social-benefit"));
-  assert.ok(ui.includes("Social links for smarter edits (optional)"));
-  assert.ok(styles.includes(".setup-social-context-cue"));
+  assert.ok(ui.includes("Optional details (channel label & social links)"));
+  assert.ok(styles.includes(".speaker-optional-lead"));
   assert.ok(styles.includes(".speaker-social-benefit"));
 });
 
