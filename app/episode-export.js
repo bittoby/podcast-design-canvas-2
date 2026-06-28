@@ -103,6 +103,22 @@
     };
   }
 
+  function polishedTrackCount(audioPolish) {
+    if (!audioPolish) {
+      return 0;
+    }
+    if (Array.isArray(audioPolish.polishedTracks)) {
+      return audioPolish.polishedTracks.filter((track) => track && track.status === "ready" && track.outputMedia && track.outputMedia.assetId).length;
+    }
+    return Number(audioPolish.polishedTrackCount || audioPolish.outputTrackCount) || 0;
+  }
+
+  function hasPolishedTracks(audioPolish) {
+    const count = polishedTrackCount(audioPolish);
+    const expected = Number(audioPolish && audioPolish.speakerCount) || 0;
+    return Boolean(audioPolish && audioPolish.presetName && count > 0 && (!expected || count >= expected));
+  }
+
   function validateExportAuthorization(context) {
     const readiness = validateReadiness(context);
     if (!readiness.ok) {
@@ -118,7 +134,7 @@
   function validateReadiness(context) {
     const ctx = context || {};
     const missing = [];
-    if (!ctx.audioPolish || !ctx.audioPolish.presetName) {
+    if (!hasPolishedTracks(ctx.audioPolish)) {
       missing.push("audio");
     }
     if (!ctx.appliedStyle || !ctx.appliedStyle.presetName) {
@@ -155,7 +171,11 @@
     lines.push(`${episode.speakerCount || 0} speaker${episode.speakerCount === 1 ? "" : "s"} · ${episode.sourceModeLabel || "sources"}`);
 
     if (ctx.audioPolish && ctx.audioPolish.presetName) {
-      lines.push(`Audio: ${ctx.audioPolish.presetName} (${ctx.audioPolish.treatmentLine || "treatment applied"})`);
+      const outputCount = polishedTrackCount(ctx.audioPolish);
+      const outputLine = outputCount
+        ? ` · ${outputCount} polished track${outputCount === 1 ? "" : "s"}`
+        : "";
+      lines.push(`Audio: ${ctx.audioPolish.presetName} (${ctx.audioPolish.treatmentLine || "treatment applied"})${outputLine}`);
     }
     if (ctx.appliedStyle && ctx.appliedStyle.presetName) {
       lines.push(
@@ -261,6 +281,8 @@
     getCaptionMode,
     createExport,
     validateReadiness,
+    polishedTrackCount,
+    hasPolishedTracks,
     validatePublishReviewGate,
     validateExportAuthorization,
     updateOption,

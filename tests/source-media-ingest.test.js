@@ -23,6 +23,14 @@ test("browser upload path stores selected media bytes before marking the source 
   assert.ok(uiSource.includes("attachImportedSourceMedia(speaker, file, index).then"));
   assert.ok(uiSource.includes("ES.attachSourceMediaAsset(speaker, metadata)"));
   assert.ok(uiSource.includes('accept: "audio/*,video/*"'));
+  assert.ok(uiSource.includes("audioPolish: audioPolish"));
+  assert.ok(uiSource.includes("AP.applyPolish(audioPolish)"));
+  assert.ok(uiSource.includes("function loadSourceMediaRecord(assetId)"));
+  assert.ok(uiSource.includes("function persistPolishedTrackOutputs(polish)"));
+  assert.ok(uiSource.includes('assetKind: "polished-track"'));
+  assert.ok(uiSource.includes("blob: sourceRecord.blob"));
+  assert.ok(uiSource.includes('status: "source-media-missing"'));
+  assert.ok(uiSource.includes("Polished output:"));
 });
 
 test("durable imported media survives session serialization into audio polish", () => {
@@ -42,9 +50,14 @@ test("durable imported media survives session serialization into audio polish", 
   const sessionSnapshot = JSON.parse(JSON.stringify({ setupDraft: draft }));
   const episode = setup.summarize(sessionSnapshot.setupDraft);
   const polish = audio.createPolish(episode);
+  const applied = audio.applyPolish(polish, { appliedAt: 1760000000000 });
+  const polishedSummary = audio.summarizePolish(applied);
   assert.strictEqual(episode.sourceMediaCount, 1);
   assert.strictEqual(polish.speakers[0].sourceMedia.assetId, "session-host-media");
   assert.strictEqual(polish.speakers[0].hasSourceMedia, true);
+  assert.strictEqual(polishedSummary.polishedTrackCount, 1);
+  assert.strictEqual(polishedSummary.polishedTracks[0].originalAssetId, "session-host-media");
+  assert.strictEqual(polishedSummary.polishedTracks[0].outputMedia.derivedFromAssetId, "session-host-media");
 });
 
 console.log(`\nsource media ingest: ${passed} assertions passed`);

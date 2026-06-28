@@ -76,7 +76,7 @@ test("ACCEPTANCE: workspace checklist and audio tracks reflect the fresh setup s
   const summary = setup.summarize(completeFreshDraft());
   const selection = style.applyPresetToSelection(style.createSelection(), "studio-spotlight", false);
   const appliedStyle = style.summarizeStyle(selection, summary.speakerCount);
-  const polish = audio.createPolish(summary);
+  const polish = audio.applyPolish(audio.createPolish(summary), { appliedAt: 1760000000000 });
 
   const ws = workspace.buildWorkspace(summary, {
     appliedStyle: appliedStyle,

@@ -200,7 +200,7 @@ test("ACCEPTANCE: social links → approve context → moments and export reflec
 
   const selection = style.createSelection();
   const exportCtx = {
-    audioPolish: audio.summarizePolish(audio.createPolish(episode)),
+    audioPolish: audio.summarizePolish(audio.applyPolish(audio.createPolish(episode), { appliedAt: 1760000000000 })),
     appliedStyle: style.summarizeStyle(selection, episode.speakerCount),
     templateName: "Founders Unfiltered",
     momentsSummary: moments.summarizeBoard(board),

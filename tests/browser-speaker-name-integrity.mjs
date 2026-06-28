@@ -150,7 +150,7 @@ function probeScript() {
         );
 
         const exportSummary = EX.buildFinalSummary(episode, {
-          audioPolish: AP.summarizePolish(AP.createPolish(episode)),
+          audioPolish: AP.summarizePolish(AP.applyPolish(AP.createPolish(episode), { appliedAt: 1760000000000 })),
           appliedStyle,
           templateName: savedTemplate.name,
           momentsSummary: VM.summarizeBoard(board),

@@ -113,6 +113,15 @@
     });
   }
 
+  function clearAppliedOutput(polish) {
+    const next = Object.assign({}, polish || createPolish({}));
+    next.applied = false;
+    next.appliedAt = null;
+    next.polishedTracks = [];
+    next.outputTrackCount = 0;
+    return next;
+  }
+
   function createPolish(episodeSummary) {
     const preset = defaultPreset();
     const levels = PRESET_LEVELS[preset.id];
@@ -123,20 +132,24 @@
       speechClarity: levels.speechClarity,
       enhancement: levels.enhancement,
       speakers: buildSpeakerTracks(episodeSummary),
+      applied: false,
+      appliedAt: null,
+      polishedTracks: [],
+      outputTrackCount: 0,
     };
   }
 
   function applyPreset(polish, presetId) {
     const preset = getPreset(presetId);
     const levels = PRESET_LEVELS[preset.id] || PRESET_LEVELS.clean;
-    return Object.assign({}, polish || createPolish({}), {
+    return clearAppliedOutput(Object.assign({}, polish || createPolish({}), {
       presetId: preset.id,
       noiseCleanup: levels.noiseCleanup,
       leveling: levels.leveling,
       speechClarity: levels.speechClarity,
       enhancement: levels.enhancement,
       speakers: polish && polish.speakers ? polish.speakers.slice() : [],
-    });
+    }));
   }
 
   function updateControl(polish, controlId, levelId) {
@@ -144,12 +157,125 @@
     if (CONTROLS.some((control) => control.id === controlId)) {
       next[controlId] = getLevel(levelId).id;
     }
-    return next;
+    return clearAppliedOutput(next);
+  }
+
+  function safeStem(value) {
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    const stem = trimmed.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").toLowerCase();
+    return stem || "speaker-track";
+  }
+
+  function controlSummaryEntries(polish) {
+    const state = polish || createPolish({});
+    return CONTROLS.map((control) => {
+      const level = getLevel(state[control.id]);
+      return {
+        id: control.id,
+        label: control.label,
+        levelId: level.id,
+        levelLabel: level.label,
+      };
+    });
+  }
+
+  function treatmentSnapshot(polish) {
+    const state = polish || createPolish({});
+    const preset = getPreset(state.presetId);
+    const controls = {};
+    const labels = controlSummaryEntries(state);
+    labels.forEach((entry) => {
+      controls[entry.id] = entry.levelId;
+    });
+    return {
+      presetId: preset.id,
+      presetName: preset.name,
+      controls,
+      controlLabels: labels,
+      treatmentLine: labels.map((entry) => `${entry.label}: ${entry.levelLabel}`).join(" · "),
+    };
+  }
+
+  function outputByteLength(sourceMedia) {
+    if (!sourceMedia) {
+      return 0;
+    }
+    return Number(sourceMedia.byteLength || sourceMedia.fileSize) || 0;
+  }
+
+  function buildPolishedTrack(track, polish, appliedAt) {
+    const speaker = track || {};
+    const treatment = treatmentSnapshot(polish);
+    const sourceMedia = speaker.sourceMedia && typeof speaker.sourceMedia === "object"
+      ? Object.assign({}, speaker.sourceMedia)
+      : null;
+    const sourceAssetId = sourceMedia ? sourceMedia.assetId || sourceMedia.id || "" : "";
+    const sourceStem = safeStem(speaker.name || speaker.sourceLabel || speaker.role);
+    const sourceSignature = sourceAssetId || `${speaker.sourceMode || "source"}-${speaker.trackIndex || 0}-${safeStem(speaker.sourceLabel)}`;
+    const outputAssetId = [
+      "polished",
+      speaker.trackIndex || 0,
+      safeStem(sourceSignature),
+      treatment.presetId,
+      safeStem(Object.keys(treatment.controls).map((key) => treatment.controls[key]).join("-")),
+      appliedAt,
+    ].join("-");
+    return {
+      id: outputAssetId,
+      trackIndex: speaker.trackIndex || 0,
+      role: speaker.role || "Speaker",
+      name: speaker.name || "Unnamed speaker",
+      sourceLabel: speaker.sourceLabel || "Source track",
+      sourceMode: speaker.sourceMode || "",
+      sourceMedia: sourceMedia,
+      originalAssetId: sourceAssetId,
+      outputMedia: {
+        assetId: outputAssetId,
+        fileName: `${sourceStem}-${treatment.presetId}-polished.wav`,
+        mimeType: "audio/wav",
+        byteLength: outputByteLength(sourceMedia),
+        storage: "polished-track",
+        derivedFromAssetId: sourceAssetId,
+        createdAt: appliedAt,
+      },
+      treatment,
+      status: "ready",
+    };
+  }
+
+  function applyPolish(polish, options) {
+    const state = polish || createPolish({});
+    const opts = options || {};
+    const appliedAt = Number(opts.appliedAt) || Date.now();
+    const speakers = Array.isArray(state.speakers) ? state.speakers : [];
+    const polishedTracks = speakers.map((track) => buildPolishedTrack(track, state, appliedAt));
+    return Object.assign({}, state, {
+      applied: true,
+      appliedAt,
+      polishedTracks,
+      outputTrackCount: polishedTracks.length,
+    });
+  }
+
+  function polishedTrackCount(polish) {
+    const tracks = polish && Array.isArray(polish.polishedTracks) ? polish.polishedTracks : [];
+    return tracks.filter((track) => track && track.status === "ready" && track.outputMedia && track.outputMedia.assetId).length;
+  }
+
+  function hasPolishedTracks(polish, expectedCount) {
+    const count = polishedTrackCount(polish);
+    const expected = Number(expectedCount) || Number(polish && polish.speakerCount) || 0;
+    return count > 0 && (!expected || count >= expected);
   }
 
   function speakerIndicator(polish, speaker) {
     const preset = getPreset(polish && polish.presetId);
     const name = (speaker && speaker.name) || "Speaker";
+    const tracks = polish && Array.isArray(polish.polishedTracks) ? polish.polishedTracks : [];
+    const output = tracks.find((track) => track && track.trackIndex === speaker.trackIndex);
+    if (output && output.outputMedia && output.outputMedia.fileName) {
+      return `${preset.name} treatment · ${name} · polished output ready`;
+    }
     const sourceCue = speaker && speaker.sourceMode === "upload"
       ? (speaker.hasSourceMedia ? "source media saved" : "source media pending")
       : "source linked";
@@ -159,12 +285,11 @@
   function summarizePolish(polish) {
     const state = polish || createPolish({});
     const preset = getPreset(state.presetId);
-    const controlSummary = CONTROLS.map((control) => {
-      const level = getLevel(state[control.id]);
-      return `${control.label}: ${level.label}`;
-    });
+    const treatment = treatmentSnapshot(state);
     const speakers = Array.isArray(state.speakers) ? state.speakers : [];
     const sourceMediaCount = speakers.reduce((total, speaker) => total + (speaker && speaker.hasSourceMedia ? 1 : 0), 0);
+    const polishedTracks = Array.isArray(state.polishedTracks) ? state.polishedTracks.slice() : [];
+    const outputCount = polishedTrackCount({ polishedTracks });
     return {
       presetId: preset.id,
       presetName: preset.name,
@@ -180,7 +305,16 @@
       speakerCount: speakers.length,
       sourceMediaCount,
       sourceMediaReady: speakers.length > 0 && sourceMediaCount === speakers.length,
-      treatmentLine: controlSummary.join(" · "),
+      applied: Boolean(state.applied && outputCount > 0),
+      appliedAt: state.appliedAt || null,
+      polishedTracks,
+      polishedTrackCount: outputCount,
+      outputTrackCount: outputCount,
+      readyForReview: hasPolishedTracks({ polishedTracks, speakerCount: speakers.length }, speakers.length),
+      treatmentLine: treatment.treatmentLine,
+      polishedTrackLine: outputCount
+        ? `${outputCount} polished track${outputCount === 1 ? "" : "s"} ready`
+        : "No polished tracks created yet",
     };
   }
 
@@ -191,7 +325,10 @@
     const options = extras || {};
     const lines = [];
     if (audio.presetName) {
-      lines.push(`Audio: ${audio.presetName} (${audio.treatmentLine})`);
+      const outputLine = audio.polishedTrackCount
+        ? ` · ${audio.polishedTrackCount} polished track${audio.polishedTrackCount === 1 ? "" : "s"}`
+        : "";
+      lines.push(`Audio: ${audio.presetName} (${audio.treatmentLine})${outputLine}`);
     }
     if (options.styleName) {
       lines.push(`Visual style: ${options.styleName}`);
@@ -204,9 +341,10 @@
       speakerCount: episode.speakerCount || 0,
       audioPreset: audio.presetName || "",
       audioTreatment: audio.treatmentLine || "",
+      polishedTrackCount: audio.polishedTrackCount || 0,
       styleName: options.styleName || "",
       templateName: options.templateName || "",
-      readyForExport: Boolean(audio.presetName),
+      readyForExport: Boolean(audio.presetName && hasPolishedTracks(audio, audio.speakerCount || episode.speakerCount)),
       summaryLines: lines,
     };
   }
@@ -223,6 +361,9 @@
     createPolish,
     applyPreset,
     updateControl,
+    applyPolish,
+    polishedTrackCount,
+    hasPolishedTracks,
     speakerIndicator,
     summarizePolish,
     buildReviewSummary,

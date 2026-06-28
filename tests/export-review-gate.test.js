@@ -39,7 +39,7 @@ function exportContext(episode, options) {
   let contextReview = contextApi.createReview(episode);
   contextReview = contextApi.approveReview(contextReview);
   let publishReview = review.createReview(episode, {
-    audioPolish: audio.summarizePolish(audio.createPolish(episode)),
+    audioPolish: audio.summarizePolish(audio.applyPolish(audio.createPolish(episode), { appliedAt: 1760000000000 })),
     appliedStyle: style.summarizeStyle(selection, episode.speakerCount),
     templateName: "Founders Look",
     hasCanvas: true,
@@ -53,7 +53,7 @@ function exportContext(episode, options) {
     publishReview = review.approveReview(publishReview).review;
   }
   return {
-    audioPolish: audio.summarizePolish(audio.createPolish(episode)),
+    audioPolish: audio.summarizePolish(audio.applyPolish(audio.createPolish(episode), { appliedAt: 1760000000000 })),
     appliedStyle: style.summarizeStyle(selection, episode.speakerCount),
     templateName: "Founders Look",
     momentsSummary: moments.summarizeBoard(board),

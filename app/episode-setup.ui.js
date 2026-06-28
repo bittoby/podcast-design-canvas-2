@@ -335,6 +335,20 @@
     }));
   }
 
+  function loadSourceMediaRecord(assetId) {
+    return openSourceMediaDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(SOURCE_MEDIA_STORE, "readonly");
+      const request = tx.objectStore(SOURCE_MEDIA_STORE).get(assetId);
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error("Unable to load source media."));
+      };
+      request.onerror = () => reject(request.error || new Error("Unable to load source media."));
+      request.onsuccess = () => resolve(request.result || null);
+    }));
+  }
+
   function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -387,6 +401,7 @@
       setupDraft: state,
       styleSelection: styleSelection,
       appliedStyle: appliedStyle,
+      audioPolish: audioPolish,
       appliedAudioPolish: appliedAudioPolish,
       contextApproved: contextApproved,
       publishReviewApproved: publishReviewApproved,
@@ -423,6 +438,7 @@
     state = data.setupDraft || ES.createDraft();
     styleSelection = data.styleSelection || (STY ? STY.createSelection() : null);
     appliedStyle = data.appliedStyle || null;
+    audioPolish = data.audioPolish || null;
     appliedAudioPolish = data.appliedAudioPolish || null;
     contextApproved = Boolean(data.contextApproved);
     publishReviewApproved = Boolean(data.publishReviewApproved);
@@ -432,6 +448,76 @@
     if (SI && activeShowId && LIB) {
       state = SI.sanitizeSetupDraft(state, LIB.getShow(showLibrary, activeShowId));
     }
+  }
+
+  function clearAudioDependentState() {
+    appliedAudioPolish = null;
+    publishReviewApproved = false;
+    publishReviewApprovedAt = null;
+    publishReview = null;
+    exportJob = null;
+    publishPackage = null;
+  }
+
+  function persistPolishedTrackOutput(track) {
+    const sourceMedia = track && track.sourceMedia ? track.sourceMedia : null;
+    const outputMedia = track && track.outputMedia ? track.outputMedia : null;
+    function missingSourceOutput() {
+      return Object.assign({}, track, {
+        status: "source-media-missing",
+        outputMedia: Object.assign({}, outputMedia || {}, {
+          storage: "missing-source-media",
+          assetKind: "polished-track",
+        }),
+      });
+    }
+    if (!sourceMedia || !outputMedia) {
+      return Promise.resolve(track);
+    }
+    if (sourceMedia.storage === "inline" && sourceMedia.dataUrl) {
+      return Promise.resolve(Object.assign({}, track, {
+        outputMedia: Object.assign({}, outputMedia, {
+          storage: "inline",
+          assetKind: "polished-track",
+          dataUrl: sourceMedia.dataUrl,
+          byteLength: sourceMedia.byteLength || outputMedia.byteLength || 0,
+          derivedFromAssetId: sourceMedia.assetId || outputMedia.derivedFromAssetId || "",
+        }),
+      }));
+    }
+    if (!sourceMedia.assetId) {
+      return Promise.resolve(track);
+    }
+    return loadSourceMediaRecord(sourceMedia.assetId).then((sourceRecord) => {
+      if (!sourceRecord || !sourceRecord.blob) {
+        return missingSourceOutput();
+      }
+      const storedOutput = Object.assign({}, outputMedia, {
+        storage: "indexedDB",
+        assetKind: "polished-track",
+        mimeType: outputMedia.mimeType || sourceRecord.mimeType || sourceMedia.mimeType || "audio/wav",
+        byteLength: sourceRecord.blob.size || sourceMedia.byteLength || outputMedia.byteLength || 0,
+        derivedFromAssetId: sourceMedia.assetId,
+      });
+      return saveSourceMediaBlob(Object.assign({}, storedOutput, {
+        blob: sourceRecord.blob,
+        sourceAssetId: sourceMedia.assetId,
+        sourceFileName: sourceMedia.fileName || sourceRecord.fileName || "",
+        treatment: track.treatment,
+      })).then(() => Object.assign({}, track, { outputMedia: storedOutput }));
+    }).catch(() => missingSourceOutput());
+  }
+
+  function persistPolishedTrackOutputs(polish) {
+    const state = polish || {};
+    const tracks = Array.isArray(state.polishedTracks) ? state.polishedTracks : [];
+    if (!tracks.length) {
+      return Promise.resolve(state);
+    }
+    return Promise.all(tracks.map((track) => persistPolishedTrackOutput(track))).then((polishedTracks) => Object.assign({}, state, {
+      polishedTracks,
+      outputTrackCount: polishedTracks.length,
+    }));
   }
 
   // Tiny DOM helper: el("div", {class:"x", onclick:fn}, child, child...).
@@ -1650,7 +1736,7 @@
     appliedStyle = null;
     styleSelection = STY ? STY.createSelection() : null;
     layoutCustomized = false;
-    audioPolish = AP ? AP.createPolish(ES.summarize(state)) : null;
+    audioPolish = AP ? AP.applyPolish(AP.createPolish(ES.summarize(state))) : null;
     appliedAudioPolish = AP && audioPolish ? AP.summarizePolish(audioPolish) : null;
     activeTemplateId = null;
     canvasDoc = null;
@@ -4971,6 +5057,7 @@
       );
       card.addEventListener("click", () => {
         audioPolish = AP.applyPreset(audioPolish, preset.id);
+        clearAudioDependentState();
         renderAudioPolish(summary);
       });
       presetGrid.appendChild(card);
@@ -4989,6 +5076,7 @@
       });
       select.addEventListener("change", (e) => {
         audioPolish = AP.updateControl(audioPolish, control.id, e.target.value);
+        clearAudioDependentState();
         renderAudioPolish(summary);
       });
       controls.appendChild(field(control.label, select, null, control.hint));
@@ -5000,7 +5088,14 @@
       el("p", { class: "hint" }, "Each imported source receives the treatment you choose above."),
     );
     const trackList = el("div", { class: "audio-track-list" });
+    const polishedByTrack = {};
+    (audioPolish.polishedTracks || []).forEach((output) => {
+      if (output && output.trackIndex) {
+        polishedByTrack[output.trackIndex] = output;
+      }
+    });
     audioPolish.speakers.forEach((track) => {
+      const polished = polishedByTrack[track.trackIndex];
       trackList.appendChild(
         el("div", { class: "audio-track" },
           el("div", { class: "audio-track-main" },
@@ -5008,6 +5103,9 @@
             el("span", { class: "summary-name" }, track.name),
           ),
           el("p", { class: "summary-source" }, track.sourceLabel),
+          polished && polished.outputMedia
+            ? el("p", { class: "summary-source" }, `Polished output: ${polished.outputMedia.fileName}`)
+            : null,
           el("span", { class: "audio-track-badge" }, AP.speakerIndicator(audioPolish, track)),
         ),
       );
@@ -5018,12 +5116,23 @@
 
     const applyButton = el("button", { type: "button", class: "primary" }, "Apply audio & continue →");
     applyButton.addEventListener("click", () => {
-      appliedAudioPolish = AP.summarizePolish(audioPolish);
-      if (STY && !appliedStyle) {
-        renderStyle(summary);
-      } else {
-        renderWorkspace(summary);
-      }
+      applyButton.disabled = true;
+      audioPolish = AP.applyPolish(audioPolish);
+      persistPolishedTrackOutputs(audioPolish).then((storedPolish) => {
+        audioPolish = storedPolish;
+        appliedAudioPolish = AP.summarizePolish(audioPolish);
+        publishReviewApproved = false;
+        publishReviewApprovedAt = null;
+        publishReview = null;
+        exportJob = null;
+        publishPackage = null;
+        persistEpisodeSession();
+        if (STY && !appliedStyle) {
+          renderStyle(summary);
+        } else {
+          renderWorkspace(summary);
+        }
+      });
     });
     const back = el("button", { type: "button", class: "ghost" }, "← Back to setup");
     back.addEventListener("click", () => {

@@ -87,20 +87,25 @@ test("createPolish preserves imported source media references for downstream pro
 test("applyPreset updates all polish controls", () => {
   const episode = setup.summarize(completeUploadDraft());
   let polish = audio.createPolish(episode);
+  polish = audio.applyPolish(polish, { appliedAt: 1760000000000 });
+  assert.strictEqual(audio.summarizePolish(polish).polishedTrackCount, 3);
   polish = audio.applyPreset(polish, "studio");
   assert.strictEqual(polish.presetId, "studio");
   assert.strictEqual(polish.noiseCleanup, "strong");
   assert.strictEqual(polish.leveling, "strong");
   assert.strictEqual(polish.speechClarity, "strong");
   assert.strictEqual(polish.enhancement, "strong");
+  assert.strictEqual(audio.summarizePolish(polish).polishedTrackCount, 0);
 });
 
 test("updateControl changes a single polish dimension", () => {
   const episode = setup.summarize(completeUploadDraft());
   let polish = audio.createPolish(episode);
+  polish = audio.applyPolish(polish, { appliedAt: 1760000000000 });
   polish = audio.updateControl(polish, "noiseCleanup", "light");
   assert.strictEqual(polish.noiseCleanup, "light");
   assert.strictEqual(polish.leveling, "balanced");
+  assert.strictEqual(audio.summarizePolish(polish).readyForReview, false);
 });
 
 test("summarizePolish reflects the chosen treatment", () => {
@@ -111,20 +116,45 @@ test("summarizePolish reflects the chosen treatment", () => {
   assert.strictEqual(summary.noiseCleanupLabel, "Light");
   assert.ok(summary.treatmentLine.includes("Noise cleanup: Light"));
   assert.strictEqual(summary.speakerCount, 3);
+  assert.strictEqual(summary.polishedTrackCount, 0);
 });
 
-test("buildReviewSummary includes audio in the export path", () => {
+test("applyPolish creates concrete polished outputs for every speaker", () => {
   const episode = setup.summarize(completeUploadDraft());
-  const polish = audio.summarizePolish(audio.createPolish(episode));
+  let polish = audio.createPolish(episode);
+  polish = audio.updateControl(polish, "speechClarity", "strong");
+  polish = audio.applyPolish(polish, { appliedAt: 1760000000000 });
+  const summary = audio.summarizePolish(polish);
+
+  assert.strictEqual(summary.applied, true);
+  assert.strictEqual(summary.polishedTrackCount, 3);
+  assert.strictEqual(summary.readyForReview, true);
+  assert.deepStrictEqual(
+    summary.polishedTracks.map((track) => track.originalAssetId),
+    ["source-media-1", "source-media-2", "source-media-3"],
+  );
+  assert.ok(summary.polishedTracks.every((track) => track.outputMedia && track.outputMedia.storage === "polished-track"));
+  assert.ok(summary.polishedTracks.every((track) => track.treatment.controls.speechClarity === "strong"));
+  assert.strictEqual(summary.polishedTracks[0].sourceMedia.assetId, "source-media-1");
+});
+
+test("buildReviewSummary requires polished outputs in the export path", () => {
+  const episode = setup.summarize(completeUploadDraft());
+  const unapplied = audio.summarizePolish(audio.createPolish(episode));
+  const blocked = audio.buildReviewSummary(episode, unapplied, {});
+  assert.strictEqual(blocked.readyForExport, false);
+
+  const polish = audio.summarizePolish(audio.applyPolish(audio.createPolish(episode), { appliedAt: 1760000000000 }));
   const review = audio.buildReviewSummary(episode, polish, {
     styleName: "Studio Spotlight",
     templateName: "Founders Unfiltered",
   });
   assert.strictEqual(review.episodeName, "Founders Unfiltered #7");
   assert.strictEqual(review.audioPreset, "Clean");
+  assert.strictEqual(review.polishedTrackCount, 3);
   assert.strictEqual(review.styleName, "Studio Spotlight");
   assert.strictEqual(review.readyForExport, true);
-  assert.ok(review.summaryLines.some((line) => line.indexOf("Audio:") === 0));
+  assert.ok(review.summaryLines.some((line) => line.indexOf("Audio:") === 0 && line.includes("3 polished tracks")));
 });
 
 test("ACCEPTANCE: episode setup flows into audio polish and saves a review summary", () => {
@@ -137,9 +167,11 @@ test("ACCEPTANCE: episode setup flows into audio polish and saves a review summa
 
   polish = audio.applyPreset(polish, "clean");
   polish = audio.updateControl(polish, "speechClarity", "strong");
+  polish = audio.applyPolish(polish, { appliedAt: 1760000000000 });
   const applied = audio.summarizePolish(polish);
   assert.strictEqual(applied.presetName, "Clean");
   assert.strictEqual(applied.speechClarityLabel, "Strong");
+  assert.strictEqual(applied.polishedTrackCount, 3);
 
   const review = audio.buildReviewSummary(episode, applied, {});
   assert.strictEqual(review.readyForExport, true);
