@@ -75,6 +75,9 @@
   let publishReviewApprovedAt = null;
   const LIB_STORAGE_KEY = "pdc-show-library";
   const EPISODE_SESSIONS_KEY = "pdc-episode-sessions";
+  const SOURCE_MEDIA_DB_NAME = "pdc-source-media";
+  const SOURCE_MEDIA_DB_VERSION = 1;
+  const SOURCE_MEDIA_STORE = "source-media";
   let showLibrary = { shows: [] };
   let activeShowId = null;
   let activeEpisodeId = null;
@@ -295,6 +298,80 @@
     } catch (err) {
       /* ignore quota errors */
     }
+  }
+
+  function openSourceMediaDb() {
+    return new Promise((resolve, reject) => {
+      if (typeof indexedDB === "undefined") {
+        reject(new Error("IndexedDB is not available for source media storage."));
+        return;
+      }
+      const request = indexedDB.open(SOURCE_MEDIA_DB_NAME, SOURCE_MEDIA_DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(SOURCE_MEDIA_STORE)) {
+          db.createObjectStore(SOURCE_MEDIA_STORE, { keyPath: "assetId" });
+        }
+      };
+      request.onerror = () => reject(request.error || new Error("Unable to open source media storage."));
+      request.onsuccess = () => resolve(request.result);
+    });
+  }
+
+  function saveSourceMediaBlob(record) {
+    return openSourceMediaDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(SOURCE_MEDIA_STORE, "readwrite");
+      tx.oncomplete = () => {
+        db.close();
+        resolve(record);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error("Unable to save source media."));
+      };
+      tx.objectStore(SOURCE_MEDIA_STORE).put(record);
+    }));
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error("Unable to read source media."));
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function sourceMediaAssetId(index, file) {
+    const scope = [activeShowId || "new-show", activeEpisodeId || "new-episode", `speaker-${index + 1}`]
+      .join("-");
+    const fileSlug = trim(file && file.name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "source-media";
+    return `${scope}-${fileSlug}-${Date.now()}`;
+  }
+
+  function attachImportedSourceMedia(speaker, file, index) {
+    const storedAt = Date.now();
+    const metadata = {
+      assetId: sourceMediaAssetId(index, file),
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || "application/octet-stream",
+      storage: "indexedDB",
+      storedAt,
+    };
+    return saveSourceMediaBlob(Object.assign({}, metadata, { blob: file })).then(() => {
+      ES.attachSourceMediaAsset(speaker, metadata);
+      return speaker.sourceMedia;
+    }).catch(() => readFileAsDataUrl(file).then((dataUrl) => {
+      ES.attachSourceMediaAsset(speaker, Object.assign({}, metadata, {
+        storage: "inline",
+        dataUrl,
+      }));
+      return speaker.sourceMedia;
+    }));
   }
 
   function episodeSessionKey(showId, episodeId) {
@@ -1828,6 +1905,11 @@
     sanitizeSetupState();
   }
 
+  function hasPendingSourceMediaSave() {
+    return state.sourceMode === "upload"
+      && state.speakers.some((speaker) => speaker && speaker.sourceMediaPending);
+  }
+
   function writeSetupFormFromState() {
     const episodeInput = document.getElementById("f-episodeName");
     if (episodeInput && trim(state.episodeName) && !trim(episodeInput.value)) {
@@ -2367,21 +2449,47 @@
       const fileInput = el("input", {
         id: `f-sp-${index}-source`,
         type: "file",
-        accept: "video/*",
+        accept: "audio/*,video/*",
         "aria-invalid": isInvalid(`speaker:${index}:source`) ? "true" : null,
       });
       const chosen = el(
         "p",
         { class: "chosen-file" },
-        speaker.fileName ? `Selected: ${speaker.fileName}` : "No file chosen yet",
+        speaker.fileName
+          ? `Selected: ${speaker.fileName}${ES.hasSourceMedia(speaker) ? " · source media saved" : ""}`
+          : "No file chosen yet",
       );
       fileInput.addEventListener("change", (e) => {
         const file = e.target.files && e.target.files[0];
-        speaker.fileName = file ? file.name : "";
-        speaker.fileSize = file ? file.size : 0;
-        chosen.textContent = speaker.fileName ? `Selected: ${speaker.fileName}` : "No file chosen yet";
+        if (!file) {
+          speaker.fileName = "";
+          speaker.fileSize = 0;
+          speaker.sourceMedia = null;
+          speaker.sourceMediaPending = false;
+          chosen.textContent = "No file chosen yet";
+          syncImportReadyBanner();
+          persistEpisodeSession();
+          return;
+        }
+        speaker.fileName = file.name;
+        speaker.fileSize = file.size;
+        speaker.sourceMedia = null;
+        speaker.sourceMediaPending = true;
+        chosen.textContent = `Saving source media: ${file.name}`;
+        attachImportedSourceMedia(speaker, file, index).then(() => {
+          speaker.sourceMediaPending = false;
+          chosen.textContent = `Selected: ${speaker.fileName} · source media saved`;
+          syncImportReadyBanner();
+          persistEpisodeSession();
+        }).catch(() => {
+          speaker.sourceMediaPending = false;
+          speaker.sourceMedia = null;
+          chosen.textContent = `Selected: ${speaker.fileName} · source media could not be saved`;
+          syncImportReadyBanner();
+          persistEpisodeSession();
+        });
       });
-      sourceBlock.appendChild(field("Speaker video file", fileInput, `speaker:${index}:source`));
+      sourceBlock.appendChild(field("Speaker media file", fileInput, `speaker:${index}:source`));
       sourceBlock.appendChild(chosen);
       const placeholderBtn = el(
         "button",
@@ -2389,7 +2497,7 @@
           type: "button",
           class: "btn-secondary file-placeholder-btn",
         },
-        speaker.fileName ? "Replace placeholder file" : "Attach placeholder file",
+        speaker.fileName ? "Replace placeholder label" : "Add placeholder label",
       );
       placeholderBtn.addEventListener("click", () => {
         readSetupFormState();
@@ -2400,7 +2508,7 @@
         el(
           "p",
           { class: "hint file-placeholder-hint" },
-          "No real file handy? Attach a synced placeholder to complete the import step in the sandbox.",
+          "Placeholder labels are for layout review only. Choose a real audio or video file to continue to audio polish.",
         ),
       );
       sourceBlock.appendChild(placeholderBtn);
@@ -2596,6 +2704,13 @@
     applySandboxHandoffSourceIfNeeded();
     applyReadyImportDefaults();
     ensureSetupStyleApplied();
+    if (hasPendingSourceMediaSave()) {
+      if (!opts.quiet) {
+        errors = { speakers: "Wait for the selected media files to finish saving before continuing." };
+        showErrors = true;
+      }
+      return false;
+    }
     const result = ES.validateDraft(state);
     if (!result.ok) {
       if (!opts.quiet) {

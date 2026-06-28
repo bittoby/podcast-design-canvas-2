@@ -91,15 +91,26 @@
   }
 
   function buildSpeakerTracks(episodeSummary) {
+    const sourceMode = episodeSummary && episodeSummary.sourceMode ? episodeSummary.sourceMode : "";
     const speakers = episodeSummary && Array.isArray(episodeSummary.speakers)
       ? episodeSummary.speakers
       : [];
-    return speakers.map((speaker, index) => ({
-      role: (speaker && speaker.role) || "Speaker",
-      name: (speaker && speaker.name) || "Unnamed speaker",
-      sourceLabel: (speaker && speaker.sourceLabel) || "Source track",
-      trackIndex: index + 1,
-    }));
+    return speakers.map((speaker, index) => {
+      const sourceMedia = speaker && speaker.sourceMedia && typeof speaker.sourceMedia === "object"
+        ? speaker.sourceMedia
+        : null;
+      const byteLength = sourceMedia ? Number(sourceMedia.byteLength) || 0 : 0;
+      const assetId = sourceMedia ? sourceMedia.assetId || sourceMedia.id || "" : "";
+      return {
+        role: (speaker && speaker.role) || "Speaker",
+        name: (speaker && speaker.name) || "Unnamed speaker",
+        sourceLabel: (speaker && speaker.sourceLabel) || "Source track",
+        sourceMode: sourceMode,
+        sourceMedia: sourceMedia,
+        hasSourceMedia: Boolean(sourceMedia && assetId && byteLength > 0),
+        trackIndex: index + 1,
+      };
+    });
   }
 
   function createPolish(episodeSummary) {
@@ -139,7 +150,10 @@
   function speakerIndicator(polish, speaker) {
     const preset = getPreset(polish && polish.presetId);
     const name = (speaker && speaker.name) || "Speaker";
-    return `${preset.name} treatment · ${name}`;
+    const sourceCue = speaker && speaker.sourceMode === "upload"
+      ? (speaker.hasSourceMedia ? "source media saved" : "source media pending")
+      : "source linked";
+    return `${preset.name} treatment · ${name} · ${sourceCue}`;
   }
 
   function summarizePolish(polish) {
@@ -149,6 +163,8 @@
       const level = getLevel(state[control.id]);
       return `${control.label}: ${level.label}`;
     });
+    const speakers = Array.isArray(state.speakers) ? state.speakers : [];
+    const sourceMediaCount = speakers.reduce((total, speaker) => total + (speaker && speaker.hasSourceMedia ? 1 : 0), 0);
     return {
       presetId: preset.id,
       presetName: preset.name,
@@ -161,7 +177,9 @@
       speechClarityLabel: getLevel(state.speechClarity).label,
       enhancement: state.enhancement,
       enhancementLabel: getLevel(state.enhancement).label,
-      speakerCount: Array.isArray(state.speakers) ? state.speakers.length : 0,
+      speakerCount: speakers.length,
+      sourceMediaCount,
+      sourceMediaReady: speakers.length > 0 && sourceMediaCount === speakers.length,
       treatmentLine: controlSummary.join(" · "),
     };
   }

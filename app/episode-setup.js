@@ -64,6 +64,7 @@
       role: role || "",
       fileName: "",
       fileSize: 0,
+      sourceMedia: null,
       trackLabel: "",
       social: emptySocial(),
     };
@@ -149,7 +150,70 @@
     const next = speaker && typeof speaker === "object" ? speaker : createSpeaker("Host");
     next.fileName = placeholderFileName(next.role);
     next.fileSize = 1280000;
+    next.sourceMedia = null;
     return next;
+  }
+
+  function sourceMediaId(fileName, role) {
+    const source = trim(fileName) || trim(role) || "speaker-source";
+    const slug = source.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "speaker-source";
+    return `${slug}-${Date.now()}`;
+  }
+
+  function normalizeSourceMediaAsset(asset, speaker) {
+    const data = asset && typeof asset === "object" ? asset : {};
+    const fileName = trim(data.fileName || data.name || (speaker && speaker.fileName));
+    const byteLength = Math.max(
+      0,
+      Number(data.byteLength || data.fileSize || data.size || (speaker && speaker.fileSize) || 0) || 0,
+    );
+    const assetId = trim(data.assetId || data.id);
+    const dataUrl = trim(data.dataUrl);
+    if (!fileName || byteLength <= 0 || (!assetId && !dataUrl)) {
+      return null;
+    }
+    return {
+      assetId: assetId || sourceMediaId(fileName, speaker && speaker.role),
+      fileName,
+      mimeType: trim(data.mimeType || data.type) || "application/octet-stream",
+      byteLength,
+      storage: trim(data.storage) || (dataUrl ? "inline" : "browser"),
+      dataUrl,
+      storedAt: Number(data.storedAt || data.capturedAt) || Date.now(),
+    };
+  }
+
+  function attachSourceMediaAsset(speaker, asset) {
+    const next = speaker && typeof speaker === "object" ? speaker : createSpeaker("Host");
+    const sourceMedia = normalizeSourceMediaAsset(asset, next);
+    if (!sourceMedia) {
+      next.sourceMedia = null;
+      return next;
+    }
+    next.fileName = sourceMedia.fileName;
+    next.fileSize = sourceMedia.byteLength;
+    next.sourceMedia = sourceMedia;
+    return next;
+  }
+
+  function hasSourceMedia(speaker) {
+    return Boolean(normalizeSourceMediaAsset(speaker && speaker.sourceMedia, speaker));
+  }
+
+  function summarizeSourceMedia(speaker) {
+    const sourceMedia = normalizeSourceMediaAsset(speaker && speaker.sourceMedia, speaker);
+    if (!sourceMedia) {
+      return null;
+    }
+    return {
+      assetId: sourceMedia.assetId,
+      fileName: sourceMedia.fileName,
+      mimeType: sourceMedia.mimeType,
+      byteLength: sourceMedia.byteLength,
+      storage: sourceMedia.storage,
+      dataUrl: sourceMedia.dataUrl,
+      storedAt: sourceMedia.storedAt,
+    };
   }
 
   // A fresh episode draft. Seeded with Host / Guest 1 / Guest 2 so the creator starts
@@ -224,8 +288,12 @@
         seenRoles.add(role);
       }
 
-      if (mode === "upload" && !trim(speaker.fileName)) {
-        fail(`speaker:${index}:source`, `Choose a video file for ${who}.`);
+      if (mode === "upload") {
+        if (!trim(speaker.fileName)) {
+          fail(`speaker:${index}:source`, `Choose an audio or video file for ${who}.`);
+        } else if (!hasSourceMedia(speaker)) {
+          fail(`speaker:${index}:source`, `Save the real media bytes for ${who} before continuing.`);
+        }
       }
 
       const social = (speaker && speaker.social) || {};
@@ -263,11 +331,14 @@
         role: trim(speaker.role),
         name: trim(speaker.name),
         sourceLabel: sourceLabel(mode, speaker),
+        sourceMedia: mode === "upload" ? summarizeSourceMedia(speaker) : null,
+        hasSourceMedia: mode === "upload" ? hasSourceMedia(speaker) : false,
         social,
       };
     });
 
     const socialLinkCount = summarizedSpeakers.reduce((total, sp) => total + sp.social.length, 0);
+    const sourceMediaCount = summarizedSpeakers.reduce((total, sp) => total + (sp.hasSourceMedia ? 1 : 0), 0);
 
     return {
       episodeName: trim(data.episodeName),
@@ -276,6 +347,7 @@
       riversideLink: mode === "riverside" ? trim(data.riversideLink) : "",
       speakerCount: summarizedSpeakers.length,
       socialLinkCount,
+      sourceMediaCount,
       roles: summarizedSpeakers.map((sp) => sp.role).filter(Boolean),
       speakers: summarizedSpeakers,
     };
@@ -354,7 +426,7 @@
       return isLikelyUrl(trim(data.riversideLink));
     }
     const speakers = Array.isArray(data.speakers) ? data.speakers : [];
-    return speakers.length > 0 && speakers.every((speaker) => trim(speaker.fileName));
+    return speakers.length > 0 && speakers.every((speaker) => trim(speaker.fileName) && hasSourceMedia(speaker));
   }
 
   function applyImportContinueDefaults(draft, options) {
@@ -451,6 +523,7 @@
       speakerRoles: (data.speakers || []).map((speaker) => trim(speaker.role)).filter(Boolean),
       speakerIdentities: handoff.speakers.map((speaker) => speaker.identityLine),
       sourceDetail: handoff.sourceDetail,
+      sourceMediaCount: Number(data.sourceMediaCount) || 0,
       presetSummary: trim(opts.presetSummary) || "",
     };
   }
@@ -489,6 +562,9 @@
     speakerBucketCueClass,
     placeholderFileName,
     attachPlaceholderFile,
+    attachSourceMediaAsset,
+    hasSourceMedia,
+    summarizeSourceMedia,
     defaultSpeakerRoleForIndex,
     normalizeDefaultSpeakerRoles,
     usedSpeakerRoles,
