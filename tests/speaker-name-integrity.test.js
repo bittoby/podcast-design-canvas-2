@@ -48,6 +48,15 @@ function draftWithSamRiveraSocial() {
       },
     }),
   ];
+  draft.speakers.forEach((speaker, index) => {
+    setup.attachSourceMediaAsset(speaker, {
+      assetId: `speaker-integrity-media-${index + 1}`,
+      fileName: speaker.fileName,
+      fileSize: 4096,
+      mimeType: "video/mp4",
+      storage: "indexedDB",
+    });
+  });
   return draft;
 }
 

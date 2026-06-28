@@ -20,10 +20,20 @@ function completeUploadDraft() {
   draft.episodeName = "Founders Unfiltered #7";
   draft.sourceMode = "upload";
   draft.speakers = [
-    Object.assign(setup.createSpeaker("Host"), { name: "Sam Rivera", fileName: "sam.mp4" }),
-    Object.assign(setup.createSpeaker("Guest 1"), { name: "Dana Kim", fileName: "dana.mp4" }),
-    Object.assign(setup.createSpeaker("Guest 2"), { name: "Marco Vidal", fileName: "marco.mp4" }),
+    Object.assign(setup.createSpeaker("Host"), { name: "Sam Rivera" }),
+    Object.assign(setup.createSpeaker("Guest 1"), { name: "Dana Kim" }),
+    Object.assign(setup.createSpeaker("Guest 2"), { name: "Marco Vidal" }),
   ];
+  draft.speakers.forEach((speaker, index) => {
+    const fileName = ["sam.mp4", "dana.mp4", "marco.mp4"][index];
+    setup.attachSourceMediaAsset(speaker, {
+      assetId: `source-media-${index + 1}`,
+      fileName,
+      fileSize: 4096,
+      mimeType: "video/mp4",
+      storage: "indexedDB",
+    });
+  });
   return draft;
 }
 
@@ -43,6 +53,35 @@ test("createPolish seeds speaker tracks from the episode summary", () => {
   assert.strictEqual(polish.speakers.length, 3);
   assert.deepStrictEqual(polish.speakers.map((track) => track.role), ["Host", "Guest 1", "Guest 2"]);
   assert.strictEqual(polish.speakers[0].sourceLabel, "sam.mp4");
+  assert.strictEqual(polish.speakers[0].sourceMode, "upload");
+});
+
+test("createPolish preserves imported source media references for downstream processing", () => {
+  const draft = setup.createDraft();
+  draft.episodeName = "Founders Unfiltered #7";
+  draft.sourceMode = "upload";
+  draft.speakers = [
+    Object.assign(setup.createSpeaker("Host"), { name: "Sam Rivera" }),
+    Object.assign(setup.createSpeaker("Guest 1"), { name: "Dana Kim", fileName: "dana.mp4" }),
+    Object.assign(setup.createSpeaker("Guest 2"), { name: "Marco Vidal", fileName: "marco.mp4" }),
+  ];
+  setup.attachSourceMediaAsset(draft.speakers[0], {
+    assetId: "source-media-sam",
+    fileName: "sam.wav",
+    fileSize: 8192,
+    mimeType: "audio/wav",
+    storage: "indexedDB",
+    storedAt: 1760000000000,
+  });
+  const episode = setup.summarize(draft);
+  const polish = audio.createPolish(episode);
+  assert.strictEqual(polish.speakers[0].hasSourceMedia, true);
+  assert.deepStrictEqual(polish.speakers[0].sourceMedia, episode.speakers[0].sourceMedia);
+  assert.strictEqual(polish.speakers[1].hasSourceMedia, false);
+
+  const summary = audio.summarizePolish(polish);
+  assert.strictEqual(summary.sourceMediaCount, 1);
+  assert.strictEqual(summary.sourceMediaReady, false);
 });
 
 test("applyPreset updates all polish controls", () => {
